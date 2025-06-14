@@ -1,0 +1,54 @@
+# === Build artifacts ===
+*.o
+*.a
+*.so
+*.out
+*.elf
+*.bin
+*.exe
+
+# === Binaries ===
+kfs
+kfs.out
+main
+
+# === Makefiles ===
+Makefile~
+.deps/
+*.d
+
+# === Backup and temp files ===
+*~
+*.swp
+*.swo
+*.tmp
+*.bak
+*.old
+
+# === Editor and IDE ===
+.vscode/
+*.DS_Store
+launch.json
+
+# === Unit testing ===
+tests/*.log
+tests/*.tmp
+tests/*.out
+
+# === Valgrind output ===
+vgcore.*
+
+# === Logs ===
+*.log
+
+# === CTags / CScope ===
+tags
+TAGS
+cscope.*
+
+# === Generated docs ===
+docs/html/
+docs/*.pdf
+docs/*.aux
+docs/*.toc
+docs/*.out
