@@ -8,6 +8,26 @@
 /* Forward declaration */
 static char scancode_to_ascii(uint8_t scancode);
 
+/* Global keyboard state */
+struct keyboard_state keyboard_state = {0, 0, 0, 0, 0};
+
+/* Enhanced scancode tables */
+static const char ascii_table[128] = {
+    0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
+    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
+    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
+    0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0,
+    '*', 0, ' '
+};
+
+static const char ascii_table_shift[128] = {
+    0, 0, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
+    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
+    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~',
+    0, '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0,
+    '*', 0, ' '
+};
+
 /* IDT and interrupt handlers */
 struct idt_entry idt[256];
 struct idt_ptr idtp;
@@ -28,32 +48,25 @@ static inline void outb(uint16_t port, uint8_t val)
 /* Initialize PIC */
 void pic_init(void)
 {
-    screen_putstring("PIC: Starting init...\n");
-    
     /* ICW1: start initialization sequence */
     outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);
     outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
-    screen_putstring("PIC: ICW1 sent\n");
     
     /* ICW2: remap IRQ table */
     outb(PIC1_DATA, IRQ0);     /* IRQ 0-7 -> interrupts 32-39 */
     outb(PIC2_DATA, IRQ8);     /* IRQ 8-15 -> interrupts 40-47 */
-    screen_putstring("PIC: ICW2 sent\n");
     
     /* ICW3: tell PICs how they're cascaded */
     outb(PIC1_DATA, 4);        /* IRQ2 connects to slave PIC */
     outb(PIC2_DATA, 2);        /* Slave PIC is connected to IRQ2 */
-    screen_putstring("PIC: ICW3 sent\n");
     
     /* ICW4: set 8086 mode */
     outb(PIC1_DATA, ICW4_8086);
     outb(PIC2_DATA, ICW4_8086);
-    screen_putstring("PIC: ICW4 sent\n");
     
     /* Mask all interrupts except keyboard (IRQ1) */
     outb(PIC1_DATA, 0xFD);     /* Enable IRQ1 (keyboard) */
     outb(PIC2_DATA, 0xFF);     /* Disable all IRQs on PIC2 */
-    screen_putstring("PIC: Masks set\n");
 }
 
 /* Set up an IDT entry */
@@ -69,9 +82,6 @@ void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags)
 /* Initialize interrupts */
 void interrupt_init(void)
 {
-    screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    screen_putstring("Setting up IDT...\n");
-    
     /* Set up IDT pointer */
     idtp.limit = (sizeof(struct idt_entry) * 256) - 1;
     idtp.base = (uint32_t)&idt;
@@ -81,37 +91,17 @@ void interrupt_init(void)
         idt_set_gate(i, 0, 0, 0);
     }
     
-    screen_putstring("Setting up IRQ1 handler...\n");
     /* Set up keyboard interrupt handler */
     idt_set_gate(IRQ1, (uint32_t)keyboard_handler_asm, 0x08, 0x8E);
     
-    /* Debug: Show handler address */
-    screen_putstring("Handler addr: 0x");
-    uint32_t addr = (uint32_t)keyboard_handler_asm;
-    for (int i = 7; i >= 0; i--) {
-        uint8_t digit = (addr >> (i * 4)) & 0xF;
-        screen_putchar(digit < 10 ? '0' + digit : 'A' + digit - 10);
-    }
-    screen_putstring("\n");
-    
-    screen_putstring("Loading IDT...\n");
     /* Load the IDT */
     idt_load();
     
-    screen_putstring("Initializing PIC...\n");
     /* Initialize PIC */
     pic_init();
     
-    screen_putstring("Enabling interrupts...\n");
     /* Enable interrupts */
     asm volatile("sti");
-    
-    screen_putstring("Interrupt system ready!\n");
-    
-    /* Test: Try to trigger a software interrupt */
-    screen_putstring("Testing interrupt system...\n");
-    asm volatile("int $33");  /* Trigger IRQ1 manually */
-    screen_putstring("Manual interrupt test complete!\n");
 }
 
 /* Send EOI to PIC */
@@ -126,63 +116,163 @@ void pic_send_eoi(uint8_t irq)
 /* Keyboard interrupt handler */
 void keyboard_handler(void)
 {
-    /* Debug: Show we entered the handler */
-    screen_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-    screen_putstring("IRQ1!");
-    
     uint8_t scancode = inb(0x60);
-    
-    /* Debug: Show scancode in hex */
-    screen_set_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK);
-    screen_putstring("SC:0x");
-    screen_putchar(scancode < 16 ? '0' : '0' + (scancode / 16));
-    screen_putchar(scancode % 16 < 10 ? '0' + (scancode % 16) : 'A' + (scancode % 16) - 10);
-    screen_putchar(' ');
     
     /* Handle key press (bit 7 not set) */
     if (!(scancode & 0x80)) {
-        /* Convert scancode to ASCII and display */
-        char c = scancode_to_ascii(scancode);
-        if (c != 0) {
-            screen_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-            screen_putchar(c);
+        /* Handle modifier keys */
+        switch (scancode) {
+            case KEY_LEFT_SHIFT:
+            case KEY_RIGHT_SHIFT:
+                keyboard_state.shift_pressed = 1;
+                break;
+            case KEY_LEFT_CTRL:
+                keyboard_state.ctrl_pressed = 1;
+                break;
+            case KEY_CAPS_LOCK:
+                keyboard_state.caps_lock = !keyboard_state.caps_lock;
+                break;
+            case KEY_F1:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F1]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F1]");
+                } else {
+                    screen_putstring("[F1]");
+                }
+                break;
+            case KEY_F2:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F2]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F2]");
+                } else {
+                    screen_putstring("[F2]");
+                }
+                break;
+            case KEY_F3:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F3]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F3]");
+                } else {
+                    screen_putstring("[F3]");
+                }
+                break;
+            case KEY_F4:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F4]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F4]");
+                } else {
+                    screen_putstring("[F4]");
+                }
+                break;
+            case KEY_F5:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F5]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F5]");
+                } else {
+                    screen_putstring("[F5]");
+                }
+                break;
+            case KEY_F6:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F6]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F6]");
+                } else {
+                    screen_putstring("[F6]");
+                }
+                break;
+            case KEY_F7:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F7]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F7]");
+                } else {
+                    screen_putstring("[F7]");
+                }
+                break;
+            case KEY_F8:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F8]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F8]");
+                } else {
+                    screen_putstring("[F8]");
+                }
+                break;
+            case KEY_F9:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F9]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F9]");
+                } else {
+                    screen_putstring("[F9]");
+                }
+                break;
+            case KEY_F10:
+                if (keyboard_state.ctrl_pressed) {
+                    screen_putstring("[Ctrl+F10]");
+                } else if (keyboard_state.alt_pressed) {
+                    screen_putstring("[Alt+F10]");
+                } else {
+                    screen_putstring("[F10]");
+                }
+                break;
+            default:
+                /* Convert scancode to ASCII and display */
+                char c = scancode_to_ascii(scancode);
+                if (c != 0) {
+                    screen_putchar(c);
+                }
+                break;
         }
     } else {
-        /* Key release - just show it for debugging */
-        screen_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-        screen_putstring("REL ");
+        /* Handle key release */
+        uint8_t key_code = scancode & 0x7F;
+        switch (key_code) {
+            case KEY_LEFT_SHIFT:
+            case KEY_RIGHT_SHIFT:
+                keyboard_state.shift_pressed = 0;
+                break;
+            case KEY_LEFT_CTRL:
+                keyboard_state.ctrl_pressed = 0;
+                break;
+        }
     }
     
     /* Send EOI */
     pic_send_eoi(IRQ1);
-    
-    /* Debug: Show we're leaving */
-    screen_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    screen_putstring("OK ");
 }
 
-/* Simple scancode to ASCII conversion */
+/* Enhanced scancode to ASCII conversion */
 static char scancode_to_ascii(uint8_t scancode)
 {
-    static const char ascii_table[] = {
-        0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-        '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
-        0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
-        0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0,
-        '*', 0, ' '
-    };
+    char c;
     
-    if (scancode < sizeof(ascii_table)) {
-        return ascii_table[scancode];
+    /* Choose the appropriate table based on shift state */
+    if (keyboard_state.shift_pressed) {
+        c = ascii_table_shift[scancode];
+    } else {
+        c = ascii_table[scancode];
     }
-    return 0;
+    
+    /* Handle caps lock for letters */
+    if (keyboard_state.caps_lock && c >= 'a' && c <= 'z') {
+        c = c - 'a' + 'A';
+    } else if (keyboard_state.caps_lock && c >= 'A' && c <= 'Z') {
+        c = c - 'A' + 'a';
+    }
+    
+    return c;
 }
 
 /* Initialize keyboard */
 void keyboard_init(void)
 {
-    screen_putstring("Keyboard: Starting init...\n");
-    
     /* Clear any pending input */
     while (inb(0x64) & 0x01) {
         inb(0x60);
@@ -193,6 +283,4 @@ void keyboard_init(void)
     
     /* Wait for keyboard to be ready */
     while (inb(0x64) & 0x02);  /* Wait for input buffer to be empty */
-    
-    screen_putstring("Keyboard: Ready!\n");
 } 
