@@ -12,7 +12,17 @@ section .text
 
 start:
     extern kernel_main
+    extern gdt_load
+    extern gdt_flush
+    
+    ; Set up stack
     mov esp, stack_top
+    
+    ; Load GDT
+    call gdt_load
+    call gdt_flush
+    
+    ; Call kernel main
     call kernel_main
     cli
 

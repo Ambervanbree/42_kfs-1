@@ -21,12 +21,13 @@ OBJ_DIR := obj
 ISO_DIR := iso
 
 # === Source and Object Files ===
-C_FILES  := kernel_main.c screen.c string.c
+C_FILES  := kernel_main.c screen.c string.c interrupt.c
 C_SRCS   := $(addprefix $(SRC_DIR)/, $(C_FILES))
 C_OBJS   := $(C_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-ASM_SRCS := $(ASM_DIR)/boot.s
-ASM_OBJS := $(ASM_SRCS:$(ASM_DIR)/%.s=$(OBJ_DIR)/%.o)
+ASM_FILES := boot.s interrupt.s gdt.s
+ASM_SRCS  := $(addprefix $(ASM_DIR)/, $(ASM_FILES))
+ASM_OBJS  := $(ASM_SRCS:$(ASM_DIR)/%.s=$(OBJ_DIR)/%.o)
 
 OBJS     := $(C_OBJS) $(ASM_OBJS) 
 
@@ -44,8 +45,12 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 $(OBJ_DIR)/%.o: $(ASM_DIR)/%.s | $(OBJ_DIR)
 	$(AS) $(ASFLAGS) $< -o $@
 
+# Explicit rule for interrupt.s
+$(OBJ_DIR)/interrupt.o: $(ASM_DIR)/interrupt.s | $(OBJ_DIR)
+	$(AS) $(ASFLAGS) $< -o $@
+
 $(NAME): $(OBJS)
-	$(LD) $(LDFLAGS) $^ -o $@
+	$(LD) $(LDFLAGS) $(C_OBJS) obj/boot.o obj/interrupt.o -o $@
 
 $(ISO_NAME): $(NAME)
 	mkdir -p $(ISO_DIR)/boot/grub
