@@ -2,6 +2,10 @@
 
 #include "screen.h"
 #include "string.h"
+#include "kprintf.h"
+
+struct screen_state states[MAX_SCREENS];
+static int current_screen;
 
 /* VGA text buffer address */
 static volatile uint16_t* const VGA_BUFFER = (uint16_t*)0xB8000;
@@ -41,7 +45,52 @@ void screen_init(void)
     cursor_x = 0;
     cursor_y = 0;
     current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+
+    screen_clear();
+    init_screen_if_needed(0);
+    current_screen = 0;
     update_hardware_cursor();
+}
+
+void init_screen_if_needed(int n){
+    if (*(uint16_t*)states[n].buffer != 0) return;
+
+    screen_clear();
+    if (n == 0) {
+        current_color = load_home_screen();
+        current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    } else if (n==1){
+        current_color = vga_color(VGA_COLOR_BLUE, VGA_COLOR_LIGHT_GREY);
+    } else if (n == 2) {
+        current_color = vga_color(VGA_COLOR_RED, VGA_COLOR_WHITE);
+    }
+
+    kprintf("This is screen %d.\n\n", n + 1);
+    
+    memcpy(states[n].buffer, (void*)VIDEO_MEMORY, SCREEN_SIZE);
+    states[n].cursor_x = cursor_x;
+    states[n].cursor_y = cursor_y;
+    states[n].color = current_color;
+}
+
+int load_home_screen() {
+    current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    kprintf("Welcome to %s!\n", KERNEL_NAME);
+    kprintf("Kernel from Scratch - KFS_1\n\n");
+    
+    screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    kprintf("The answer to everything: %d\n", 42);
+    
+    screen_set_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
+    kprintf("System Information:\n");
+    screen_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    kprintf("- Architecture: %s\n", ARCHITECTURE);
+    kprintf("- Boot loader: %s\n", BOOTLOADER);
+    kprintf("- %s successfully loaded!\n\n", KERNEL_NAME);
+    
+    screen_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    kprintf("This kernel supports up to 3 screens. Press Alt+F1, Alt+F2 or Alt+F3 to switch between them.\n\n");
+    return current_color;
 }
 
 /* Clear screen */
@@ -146,4 +195,23 @@ void screen_set_cursor(size_t x, size_t y)
         cursor_y = y;
         update_hardware_cursor();
     }
+}
+
+void switch_screen(int n) {
+    if ((n < 0 || n > MAX_SCREENS) || n == current_screen) return;
+
+    memcpy(states[current_screen].buffer, (void*)VIDEO_MEMORY, SCREEN_SIZE);
+    states[current_screen].cursor_x = cursor_x;
+    states[current_screen].cursor_y = cursor_y;
+    states[current_screen].color = current_color;
+
+    init_screen_if_needed(n);
+
+    memcpy(VIDEO_MEMORY, states[n].buffer, SCREEN_SIZE);
+    cursor_x = states[n].cursor_x;
+    cursor_y = states[n].cursor_y;
+    current_color = states[n].color;
+    current_screen = n;
+
+    update_hardware_cursor();
 }

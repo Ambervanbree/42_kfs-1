@@ -182,7 +182,7 @@ void keyboard_handler(void)
                 } else if (keyboard_state.alt_pressed) {
                     screen_putstring("[Alt+F1]");
                 } else {
-                    screen_putstring("[F1]");
+                    switch_screen(0);
                 }
                 break;
             case KEY_F2:
@@ -191,7 +191,7 @@ void keyboard_handler(void)
                 } else if (keyboard_state.alt_pressed) {
                     screen_putstring("[Alt+F2]");
                 } else {
-                    screen_putstring("[F2]");
+                    switch_screen(1);
                 }
                 break;
             case KEY_F3:
@@ -200,7 +200,7 @@ void keyboard_handler(void)
                 } else if (keyboard_state.alt_pressed) {
                     screen_putstring("[Alt+F3]");
                 } else {
-                    screen_putstring("[F3]");
+                    switch_screen(2);
                 }
                 break;
             case KEY_F4:
@@ -266,13 +266,14 @@ void keyboard_handler(void)
                     screen_putstring("[F10]");
                 }
                 break;
-            default:
+            default: {
                 /* Convert scancode to ASCII and display */
                 char c = scancode_to_ascii(scancode);
                 if (c != 0) {
                     screen_putchar(c);
                 }
                 break;
+            }
         }
     } else {
         // Handle key release
