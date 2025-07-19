@@ -3,6 +3,9 @@
 #include "screen.h"
 #include "string.h"
 
+char screens[NUM_SCREENS][SCREEN_SIZE];
+int current_screen = 0;
+
 /* VGA text buffer address */
 static volatile uint16_t* const VGA_BUFFER = (uint16_t*)0xB8000;
 
@@ -41,6 +44,18 @@ void screen_init(void)
     cursor_x = 0;
     cursor_y = 0;
     current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+
+    // Clear all virtual screens
+    uint16_t blank = vga_entry(' ', current_color);
+    for (int n = 0; n < NUM_SCREENS; n++) {
+        uint16_t* buf = (uint16_t*)screens[n];
+        for (size_t i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
+            buf[i] = blank;
+        }
+    }
+
+    current_screen = 0;
+
     update_hardware_cursor();
 }
 
@@ -145,5 +160,12 @@ void screen_set_cursor(size_t x, size_t y)
         cursor_x = x;
         cursor_y = y;
         update_hardware_cursor();
+    }
+}
+
+void switch_screen(int n) {
+    if (n >= 0 && n < NUM_SCREENS) {
+        current_screen = n;
+        memcpy((void*)0xB8000, screens[n], SCREEN_SIZE);
     }
 }

@@ -8,7 +8,8 @@
 
 #define SCREEN_WIDTH  80
 #define SCREEN_HEIGHT 25
-
+#define NUM_SCREENS 3
+#define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2)
 
 enum vga_color {
     VGA_COLOR_BLACK = 0,
@@ -38,5 +39,6 @@ void screen_set_color(enum vga_color fg, enum vga_color bg);
 void screen_set_cursor(size_t x, size_t y);
 void screen_get_cursor(size_t* x, size_t* y);
 void screen_scroll(void);
+void switch_screen(int n);
 
 #endif 

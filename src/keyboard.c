@@ -180,14 +180,14 @@ void keyboard_handler(void)
                 if (keyboard_state.ctrl_pressed) {
                     screen_putstring("[Ctrl+F1]");
                 } else if (keyboard_state.alt_pressed) {
-                    screen_putstring("[Alt+F1]");
+                    switch_screen(0);
                 } else {
                     screen_putstring("[F1]");
                 }
                 break;
             case KEY_F2:
                 if (keyboard_state.ctrl_pressed) {
-                    screen_putstring("[Ctrl+F2]");
+                    switch_screen(1);
                 } else if (keyboard_state.alt_pressed) {
                     screen_putstring("[Alt+F2]");
                 } else {
@@ -196,7 +196,7 @@ void keyboard_handler(void)
                 break;
             case KEY_F3:
                 if (keyboard_state.ctrl_pressed) {
-                    screen_putstring("[Ctrl+F3]");
+                    switch_screen(2);
                 } else if (keyboard_state.alt_pressed) {
                     screen_putstring("[Alt+F3]");
                 } else {

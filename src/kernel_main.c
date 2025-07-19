@@ -1,5 +1,3 @@
-
-
 #include "kernel.h"
 #include "screen.h"
 #include "string.h"
@@ -7,10 +5,8 @@
 #include "keyboard.h"
 
 
-
 void kernel_main(void) //uint32_t magic, struct multiboot_info* mbi?
 {
-
     screen_init();
     screen_clear();
     
@@ -55,7 +51,9 @@ void kernel_main(void) //uint32_t magic, struct multiboot_info* mbi?
 
     int x = 12345;
     kprintf("Address of x: %x\n", (unsigned int)&x);
-    kprintf("Value of x in hex: %x\n", x);
+    kprintf("Value of x in hex: %x\n\n", x);
+
+    kprintf("KrnL has upto 3 screens. \nPress Alt + F1, Alt + F2 or Alt +F3 to switch between them.\n\n");
     
     /* Kernel main loop - interrupts will handle keyboard input */
     while (1) {
