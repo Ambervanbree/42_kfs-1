@@ -1,4 +1,4 @@
-#include "interrupt.h"
+#include "keyboard.h"
 #include "screen.h"
 
 /* Color definitions for debug output */
