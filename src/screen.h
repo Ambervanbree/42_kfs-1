@@ -8,7 +8,16 @@
 
 #define SCREEN_WIDTH  80
 #define SCREEN_HEIGHT 25
+#define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2)
+#define MAX_SCREENS 3
+#define VIDEO_MEMORY ((uint8_t*)0xB8000)
 
+struct screen_state {
+    uint8_t buffer[SCREEN_SIZE];
+    size_t cursor_x;
+    size_t cursor_y;
+    uint8_t color;
+};
 
 enum vga_color {
     VGA_COLOR_BLACK = 0,
@@ -31,6 +40,8 @@ enum vga_color {
 
 
 void screen_init(void);
+void init_screen_if_needed(int n);
+int load_home_screen();
 void screen_clear(void);
 void screen_putchar(char c);
 void screen_putstring(const char* str);
@@ -38,5 +49,6 @@ void screen_set_color(enum vga_color fg, enum vga_color bg);
 void screen_set_cursor(size_t x, size_t y);
 void screen_get_cursor(size_t* x, size_t* y);
 void screen_scroll(void);
+void switch_screen(int n);
 
 #endif 

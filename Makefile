@@ -57,7 +57,7 @@ $(ISO_NAME): $(NAME)
 
 build: $(ISO_NAME)
 
-run: build
+run: fclean build
 	qemu-system-i386 -cdrom $(ISO_NAME) -boot d -serial mon:stdio
 
 # === Debug Build ===

@@ -1,5 +1,3 @@
-
-
 #ifndef KERNEL_H
 #define KERNEL_H
 
@@ -36,9 +34,10 @@ struct multiboot_info {
     uint32_t vbe_interface_len;
 };
 
-
 #define MULTIBOOT_MAGIC 0x2BADB002
-
+#define BOOTLOADER "GRUB"
+#define ARCHITECTURE "i386 (x86)"
+#define KERNEL_NAME "KrnL"
 
 void kernel_main(); //uint32_t magic, struct multiboot_info* mbi
 
