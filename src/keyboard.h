@@ -76,6 +76,12 @@ struct idt_ptr {
 #define KEY_F11        0x57
 #define KEY_F12        0x58
 
+// Arrow key scancodes (extended)
+#define KEY_ARROW_UP    0x48
+#define KEY_ARROW_DOWN  0x50
+#define KEY_ARROW_LEFT  0x4B
+#define KEY_ARROW_RIGHT 0x4D
+
 /* Keyboard state */
 struct keyboard_state {
     uint8_t shift_pressed;

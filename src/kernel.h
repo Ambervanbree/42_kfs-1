@@ -42,4 +42,6 @@ struct multiboot_info {
 
 void kernel_main(); //uint32_t magic, struct multiboot_info* mbi
 
+extern void outb(uint16_t port, uint8_t val);
+
 #endif 

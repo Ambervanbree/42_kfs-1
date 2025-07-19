@@ -36,5 +36,7 @@ void screen_putchar(char c);
 void screen_putstring(const char* str);
 void screen_set_color(enum vga_color fg, enum vga_color bg);
 void screen_set_cursor(size_t x, size_t y);
+void screen_get_cursor(size_t* x, size_t* y);
+void screen_scroll(void);
 
 #endif 

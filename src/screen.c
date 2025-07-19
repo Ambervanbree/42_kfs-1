@@ -25,12 +25,23 @@ static inline uint8_t vga_color(enum vga_color fg, enum vga_color bg)
     return fg | bg << 4;
 }
 
+/* Update the hardware cursor position */
+static void update_hardware_cursor(void)
+{
+    uint16_t pos = (uint16_t)(cursor_y * SCREEN_WIDTH + cursor_x);
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+}
+
 /* Initialize screen */
 void screen_init(void)
 {
     cursor_x = 0;
     cursor_y = 0;
     current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+    update_hardware_cursor();
 }
 
 /* Clear screen */
@@ -42,10 +53,10 @@ void screen_clear(void)
     }
     cursor_x = 0;
     cursor_y = 0;
+    update_hardware_cursor();
 }
 
-/* Scroll screen up by one line */
-static void screen_scroll(void)
+void screen_scroll(void)
 {
     /* Move all lines up */
     for (size_t y = 0; y < SCREEN_HEIGHT - 1; y++) {
@@ -63,6 +74,13 @@ static void screen_scroll(void)
     }
     
     cursor_y = SCREEN_HEIGHT - 1;
+    update_hardware_cursor();
+}
+
+void screen_get_cursor(size_t* x, size_t* y)
+{
+    if (x) *x = cursor_x;
+    if (y) *y = cursor_y;
 }
 
 /* Put character at current cursor position */
@@ -102,6 +120,7 @@ void screen_putchar(char c)
     if (cursor_y >= SCREEN_HEIGHT) {
         screen_scroll();
     }
+    update_hardware_cursor();
 }
 
 /* Put string on screen */
@@ -125,5 +144,6 @@ void screen_set_cursor(size_t x, size_t y)
     if (x < SCREEN_WIDTH && y < SCREEN_HEIGHT) {
         cursor_x = x;
         cursor_y = y;
+        update_hardware_cursor();
     }
 }

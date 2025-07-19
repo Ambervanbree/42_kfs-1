@@ -40,7 +40,7 @@ static inline uint8_t inb(uint16_t port)
     return ret;
 }
 
-static inline void outb(uint16_t port, uint8_t val)
+void outb(uint16_t port, uint8_t val)
 {
     asm volatile("outb %0, %1" : : "a"(val), "Nd"(port));
 }
@@ -117,9 +117,53 @@ void pic_send_eoi(uint8_t irq)
 void keyboard_handler(void)
 {
     uint8_t scancode = inb(0x60);
+    static uint8_t extended = 0;
     
-    /* Handle key press (bit 7 not set) */
+    // Handle extended scancode prefix
+    if (scancode == 0xE0) {
+        extended = 1;
+        pic_send_eoi(IRQ1);
+        return;
+    }
+    
     if (!(scancode & 0x80)) {
+        // Key press
+        if (extended) {
+            size_t x, y;
+            screen_get_cursor(&x, &y);
+            switch (scancode) {
+                case KEY_ARROW_LEFT:
+                    if (x > 0) {
+                        screen_set_cursor(x - 1, y);
+                    }
+                    break;
+                case KEY_ARROW_RIGHT:
+                    if (x < SCREEN_WIDTH - 1) {
+                        screen_set_cursor(x + 1, y);
+                    }
+                    break;
+                case KEY_ARROW_UP:
+                    if (y > 0) {
+                        screen_set_cursor(x, y - 1);
+                    } else {
+                        // Optionally scroll up if at top
+                        // (no-op for now)
+                    }
+                    break;
+                case KEY_ARROW_DOWN:
+                    if (y < SCREEN_HEIGHT - 1) {
+                        screen_set_cursor(x, y + 1);
+                    } else {
+                        // Optionally scroll down if at bottom
+                        screen_scroll();
+                        screen_set_cursor(x, SCREEN_HEIGHT - 1);
+                    }
+                    break;
+            }
+            extended = 0;
+            pic_send_eoi(IRQ1);
+            return;
+        }
         /* Handle modifier keys */
         switch (scancode) {
             case KEY_LEFT_SHIFT:
@@ -231,7 +275,7 @@ void keyboard_handler(void)
                 break;
         }
     } else {
-        /* Handle key release */
+        // Handle key release
         uint8_t key_code = scancode & 0x7F;
         switch (key_code) {
             case KEY_LEFT_SHIFT:
