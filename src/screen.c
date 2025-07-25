@@ -67,7 +67,7 @@ void init_screen_if_needed(int n){
 
     kprintf("This is screen %d.\n\n", n + 1);
     
-    memcpy(states[n].buffer, (void*)VIDEO_MEMORY, SCREEN_SIZE);
+    memcpy(states[n].buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
     states[n].cursor_x = cursor_x;
     states[n].cursor_y = cursor_y;
     states[n].color = current_color;
@@ -200,14 +200,14 @@ void screen_set_cursor(size_t x, size_t y)
 void switch_screen(int n) {
     if ((n < 0 || n > MAX_SCREENS) || n == current_screen) return;
 
-    memcpy(states[current_screen].buffer, (void*)VIDEO_MEMORY, SCREEN_SIZE);
+    memcpy(states[current_screen].buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
     states[current_screen].cursor_x = cursor_x;
     states[current_screen].cursor_y = cursor_y;
     states[current_screen].color = current_color;
 
     init_screen_if_needed(n);
 
-    memcpy(VIDEO_MEMORY, states[n].buffer, SCREEN_SIZE);
+    memcpy((void*)VGA_BUFFER, states[n].buffer, SCREEN_SIZE);
     cursor_x = states[n].cursor_x;
     cursor_y = states[n].cursor_y;
     current_color = states[n].color;

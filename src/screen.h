@@ -10,7 +10,6 @@
 #define SCREEN_HEIGHT 25
 #define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2)
 #define MAX_SCREENS 3
-#define VIDEO_MEMORY ((uint8_t*)0xB8000)
 
 struct screen_state {
     uint8_t buffer[SCREEN_SIZE];
