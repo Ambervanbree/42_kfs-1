@@ -1,6 +1,11 @@
 #include "keyboard.h"
 #include "screen.h"
 
+#define INPUT_BUFFER_SIZE SCREEN_WIDTH
+static char input_buffer[INPUT_BUFFER_SIZE + 1] = {0};
+static size_t input_length = 0;
+static size_t input_cursor = 0; // Track cursor position within input
+
 /* Color definitions for debug output */
 #define VGA_COLOR_YELLOW 14
 #define VGA_COLOR_LIGHT_RED 12
@@ -133,32 +138,34 @@ void keyboard_handler(void)
             screen_get_cursor(&x, &y);
             switch (scancode) {
                 case KEY_ARROW_LEFT:
-                    if (x > 0) {
-                        screen_set_cursor(x - 1, y);
+                    if (input_cursor > 0) {
+                        input_cursor--;
+                        screen_set_cursor(input_cursor, y);
                     }
                     break;
                 case KEY_ARROW_RIGHT:
-                    if (x < SCREEN_WIDTH - 1) {
-                        screen_set_cursor(x + 1, y);
+                    if (input_cursor < input_length) {
+                        input_cursor++;
+                        screen_set_cursor(input_cursor, y);
                     }
                     break;
-                case KEY_ARROW_UP:
-                    if (y > 0) {
-                        screen_set_cursor(x, y - 1);
-                    } else {
-                        // Optionally scroll up if at top
-                        // (no-op for now)
-                    }
-                    break;
-                case KEY_ARROW_DOWN:
-                    if (y < SCREEN_HEIGHT - 1) {
-                        screen_set_cursor(x, y + 1);
-                    } else {
-                        // Optionally scroll down if at bottom
-                        screen_scroll();
-                        screen_set_cursor(x, SCREEN_HEIGHT - 1);
-                    }
-                    break;
+                // case KEY_ARROW_UP:
+                //     if (y > 0) {
+                //         screen_set_cursor(x, y - 1);
+                //     } else {
+                //         // Optionally scroll up if at top
+                //         // (no-op for now)
+                //     }
+                //     break;
+                // case KEY_ARROW_DOWN:
+                //     if (y < SCREEN_HEIGHT - 1) {
+                //         screen_set_cursor(x, y + 1);
+                //     } else {
+                //         // Optionally scroll down if at bottom
+                //         screen_scroll();
+                //         screen_set_cursor(x, SCREEN_HEIGHT - 1);
+                //     }
+                //     break;
             }
             extended = 0;
             pic_send_eoi(IRQ1);
@@ -269,8 +276,64 @@ void keyboard_handler(void)
             default: {
                 /* Convert scancode to ASCII and display */
                 char c = scancode_to_ascii(scancode);
-                if (c != 0) {
-                    screen_putchar(c);
+                // Only store printable ASCII (32-126)
+                if (c >= 32 && c <= 126) {
+                    if (input_length < INPUT_BUFFER_SIZE) {
+                        // Shift buffer right from cursor
+                        for (size_t i = input_length; i > input_cursor; i--) {
+                            input_buffer[i] = input_buffer[i - 1];
+                        }
+                        input_buffer[input_cursor] = c;
+                        input_length++;
+                        input_buffer[input_length] = '\0';
+                        // Redraw the line from cursor
+                        size_t x, y;
+                        screen_get_cursor(&x, &y);
+                        for (size_t i = input_cursor; i < input_length; i++) {
+                            screen_set_cursor(i, y);
+                            screen_putchar(input_buffer[i]);
+                        }
+                        // Erase the char after the new end if needed
+                        screen_set_cursor(input_length, y);
+                        screen_putchar(' ');
+                        // Move cursor to after inserted char
+                        input_cursor++;
+                        screen_set_cursor(input_cursor, y);
+                    }
+                    // If buffer is full, clear it
+                    if (input_length >= INPUT_BUFFER_SIZE) {
+                        input_length = 0;
+                        input_cursor = 0;
+                        input_buffer[0] = '\0';
+                        screen_putchar('\n');
+                    }
+                } else if (c == '\b') { // Backspace
+                    if (input_cursor > 0 && input_length > 0) {
+                        // Shift buffer left from cursor
+                        for (size_t i = input_cursor - 1; i < input_length - 1; i++) {
+                            input_buffer[i] = input_buffer[i + 1];
+                        }
+                        input_length--;
+                        input_buffer[input_length] = '\0';
+                        input_cursor--;
+                        // Redraw the line from cursor
+                        size_t x, y;
+                        screen_get_cursor(&x, &y);
+                        for (size_t i = input_cursor; i < input_length; i++) {
+                            screen_set_cursor(i, y);
+                            screen_putchar(input_buffer[i]);
+                        }
+                        // Erase the char after the new end
+                        screen_set_cursor(input_length, y);
+                        screen_putchar(' ');
+                        // Move cursor to after deleted char
+                        screen_set_cursor(input_cursor, y);
+                    }
+                } else if (c == '\n') { // Enter
+                    input_length = 0;
+                    input_cursor = 0;
+                    input_buffer[0] = '\0';
+                    screen_putchar('\n');
                 }
                 break;
             }
