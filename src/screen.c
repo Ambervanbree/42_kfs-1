@@ -135,6 +135,9 @@ void screen_get_cursor(size_t* x, size_t* y)
 /* Put character at current cursor position */
 void screen_putchar(char c)
 {
+    size_t old_x = cursor_x;
+    size_t old_y = cursor_y;
+
     if (c == '\n') {
         /* Newline */
         cursor_x = 0;
@@ -169,6 +172,33 @@ void screen_putchar(char c)
     if (cursor_y >= SCREEN_HEIGHT) {
         screen_scroll();
     }
+
+    // Debug output - show cursor movement
+    size_t save_x = cursor_x;
+    size_t save_y = cursor_y;
+    
+    // Show at position 16 (after keyboard debug)
+    uint8_t debug_color = VGA_COLOR_BLACK | VGA_COLOR_LIGHT_GREY << 4;
+    VGA_BUFFER[16] = vga_entry('S', debug_color);  // S for Screen
+    VGA_BUFFER[17] = vga_entry(':', debug_color);
+    VGA_BUFFER[18] = vga_entry('0' + old_x/10, debug_color);
+    VGA_BUFFER[19] = vga_entry('0' + old_x%10, debug_color);
+    VGA_BUFFER[20] = vga_entry(',', debug_color);
+    VGA_BUFFER[21] = vga_entry('0' + old_y/10, debug_color);
+    VGA_BUFFER[22] = vga_entry('0' + old_y%10, debug_color);
+    VGA_BUFFER[23] = vga_entry('-', debug_color);
+    VGA_BUFFER[24] = vga_entry('>', debug_color);
+    VGA_BUFFER[25] = vga_entry('0' + cursor_x/10, debug_color);
+    VGA_BUFFER[26] = vga_entry('0' + cursor_x%10, debug_color);
+    VGA_BUFFER[27] = vga_entry(',', debug_color);
+    VGA_BUFFER[28] = vga_entry('0' + cursor_y/10, debug_color);
+    VGA_BUFFER[29] = vga_entry('0' + cursor_y%10, debug_color);
+    VGA_BUFFER[30] = vga_entry(' ', debug_color);
+    VGA_BUFFER[31] = vga_entry(c, debug_color);  // Show the character
+
+    cursor_x = save_x;
+    cursor_y = save_y;
+    
     update_hardware_cursor();
 }
 
