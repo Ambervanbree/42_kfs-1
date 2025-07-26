@@ -8,6 +8,7 @@
 #define SCREEN_HEIGHT 25
 #define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2) //Byte 1: The ASCII character, Byte 2: The attribute byte (color information)
 #define MAX_SCREENS 3
+#define TAB_WIDTH 4
 
 struct screen_state {
     uint8_t buffer[SCREEN_SIZE];

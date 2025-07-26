@@ -139,7 +139,7 @@ void screen_putchar(char c)
         cursor_y++;
     } else if (c == '\t') {
         /* Tab - align to next 4-character boundary */
-        cursor_x = (cursor_x + 4) & ~(4 - 1);
+        cursor_x = (cursor_x + TAB_WIDTH) & ~(TAB_WIDTH - 1);
     } else if (c == '\r') {
         /* Carriage return */
         cursor_x = 0;
