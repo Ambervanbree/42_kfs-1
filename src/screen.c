@@ -1,5 +1,3 @@
-
-
 #include "screen.h"
 #include "string.h"
 #include "kprintf.h"
@@ -55,9 +53,7 @@ void screen_init(void)
 void init_screen_if_needed(int n){
     if (*(uint16_t*)states[n].buffer != 0) return;
 
-    screen_clear();
     if (n == 0) {
-        current_color = load_home_screen();
         current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
     } else if (n==1){
         current_color = vga_color(VGA_COLOR_BLUE, VGA_COLOR_LIGHT_GREY);
@@ -65,6 +61,10 @@ void init_screen_if_needed(int n){
         current_color = vga_color(VGA_COLOR_RED, VGA_COLOR_WHITE);
     }
 
+    screen_clear();
+    if (n == 0){
+        load_home_screen();
+    }
     kprintf("This is screen %d.\n\n", n + 1);
     
     memcpy(states[n].buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
@@ -73,8 +73,7 @@ void init_screen_if_needed(int n){
     states[n].color = current_color;
 }
 
-int load_home_screen() {
-    current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+void load_home_screen() {
     kprintf("Welcome to %s!\n", KERNEL_NAME);
     kprintf("Kernel from Scratch - KFS_1\n\n");
     
@@ -90,7 +89,6 @@ int load_home_screen() {
     
     screen_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
     kprintf("This kernel supports up to 3 screens. Press Alt+F1, Alt+F2 or Alt+F3 to switch between them.\n\n");
-    return current_color;
 }
 
 /* Clear screen */

@@ -1,5 +1,3 @@
-
-
 #ifndef SCREEN_H
 #define SCREEN_H
 
@@ -40,7 +38,7 @@ enum vga_color {
 
 void screen_init(void);
 void init_screen_if_needed(int n);
-int load_home_screen();
+void load_home_screen();
 void screen_clear(void);
 void screen_putchar(char c);
 void screen_putstring(const char* str);
