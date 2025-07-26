@@ -354,6 +354,7 @@ void keyboard_handler(void)
     
     /* Send EOI */
     pic_send_eoi(IRQ1);
+    extended = 0;  // Clear extended flag after handling any key
 }
 
 /* Enhanced scancode to ASCII conversion */
