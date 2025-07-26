@@ -39,7 +39,7 @@ struct multiboot_info {
 #define ARCHITECTURE "i386 (x86)"
 #define KERNEL_NAME "KrnL"
 
-void kernel_main(); //uint32_t magic, struct multiboot_info* mbi
+void kernel_main(); 
 
 extern void outb(uint16_t port, uint8_t val);
 

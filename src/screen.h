@@ -8,7 +8,7 @@
 
 #define SCREEN_WIDTH  80
 #define SCREEN_HEIGHT 25
-#define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2)
+#define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2) //Byte 1: The ASCII character, Byte 2: The attribute byte (color information)
 #define MAX_SCREENS 3
 
 struct screen_state {
