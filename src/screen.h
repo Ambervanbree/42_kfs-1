@@ -1,5 +1,3 @@
-
-
 #ifndef SCREEN_H
 #define SCREEN_H
 
@@ -10,6 +8,7 @@
 #define SCREEN_HEIGHT 25
 #define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2) //Byte 1: The ASCII character, Byte 2: The attribute byte (color information)
 #define MAX_SCREENS 3
+#define TAB_WIDTH 4
 
 struct screen_state {
     uint8_t buffer[SCREEN_SIZE];
@@ -40,7 +39,7 @@ enum vga_color {
 
 void screen_init(void);
 void init_screen_if_needed(int n);
-int load_home_screen();
+void load_home_screen();
 void screen_clear(void);
 void screen_putchar(char c);
 void screen_putstring(const char* str);
