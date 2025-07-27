@@ -10,6 +10,8 @@
 #define MAX_SCREENS 3
 #define TAB_WIDTH 4
 
+extern struct screen_state* current_screen;
+
 struct screen_state {
     uint8_t buffer[SCREEN_SIZE];
     size_t cursor_x;
@@ -37,16 +39,14 @@ enum vga_color {
 };
 
 
-void screen_init(void);
-void init_screen_if_needed(int n);
-void load_home_screen();
+void screen_init();
+void load_home_screen(void);
 void screen_clear(void);
 void screen_putchar(char c);
 void screen_putstring(const char* str);
-void screen_set_color(enum vga_color fg, enum vga_color bg);
 void screen_set_cursor(size_t x, size_t y);
 void screen_get_cursor(size_t* x, size_t* y);
 void screen_scroll(void);
-void switch_screen(int n);
+struct screen_state* switch_screen(int n);
 
 #endif 

@@ -149,23 +149,6 @@ void keyboard_handler(void)
                         screen_set_cursor(input_cursor, y);
                     }
                     break;
-                // case KEY_ARROW_UP:
-                //     if (y > 0) {
-                //         screen_set_cursor(x, y - 1);
-                //     } else {
-                //         // Optionally scroll up if at top
-                //         // (no-op for now)
-                //     }
-                //     break;
-                // case KEY_ARROW_DOWN:
-                //     if (y < SCREEN_HEIGHT - 1) {
-                //         screen_set_cursor(x, y + 1);
-                //     } else {
-                //         // Optionally scroll down if at bottom
-                //         screen_scroll();
-                //         screen_set_cursor(x, SCREEN_HEIGHT - 1);
-                //     }
-                //     break;
             }
             extended = 0;
             pic_send_eoi(IRQ1);

@@ -2,18 +2,11 @@
 #include "string.h"
 #include "kprintf.h"
 
-struct screen_state states[MAX_SCREENS];
-static int current_screen;
+static struct screen_state states[MAX_SCREENS];
+struct screen_state* current_screen;
 
 /* VGA text buffer address */
 static volatile uint16_t* const VGA_BUFFER = (uint16_t*)0xB8000;
-
-/* Current cursor position */
-static size_t cursor_x = 0;
-static size_t cursor_y = 0;
-
-/* Current color */
-static uint8_t current_color = VGA_COLOR_LIGHT_GREY | VGA_COLOR_BLACK << 4;
 
 /* Helper function to create VGA entry */
 static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
@@ -28,84 +21,84 @@ static inline uint8_t vga_color(enum vga_color fg, enum vga_color bg)
 }
 
 /* Update the hardware cursor position */
-static void update_hardware_cursor(void)
+static void update_hardware_cursor()
 {
-    uint16_t pos = (uint16_t)(cursor_y * SCREEN_WIDTH + cursor_x);
+    uint16_t pos = (uint16_t)(current_screen->cursor_y * SCREEN_WIDTH + current_screen->cursor_x);
     outb(0x3D4, 0x0F);
     outb(0x3D5, (uint8_t)(pos & 0xFF));
     outb(0x3D4, 0x0E);
     outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
 }
 
-/* Initialize screen */
 void screen_init(void)
 {
-    cursor_x = 0;
-    cursor_y = 0;
-    current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+   for (int i = 0; i < MAX_SCREENS; i++) {
+        memset(states[i].buffer, 0, SCREEN_SIZE);
+        states[i].cursor_x = 0;
+        states[i].cursor_y = 0;
+        if (i == 0) {
+            states[i].color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+        } else if (i == 1) {
+            states[i].color = vga_color(VGA_COLOR_BLUE, VGA_COLOR_LIGHT_GREY);
+        } else if (i == 2) {
+            states[i].color = vga_color(VGA_COLOR_MAGENTA, VGA_COLOR_WHITE);
+        } else {
+            states[i].color = vga_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        }
 
-    screen_clear();
-    init_screen_if_needed(0);
-    current_screen = 0;
+        current_screen = &states[i];
+        screen_clear();
+
+        if (i == 0)
+            load_home_screen();
+        kprintf("This is screen %d.\n\n", i + 1);
+        memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
+        update_hardware_cursor();
+    }
+    current_screen = &states[0];
+    memcpy((void*)VGA_BUFFER, current_screen->buffer, SCREEN_SIZE);
     update_hardware_cursor();
-}
-
-void init_screen_if_needed(int n){
-    if (*(uint16_t*)states[n].buffer != 0) return;
-
-    if (n == 0) {
-        current_color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-    } else if (n==1){
-        current_color = vga_color(VGA_COLOR_BLUE, VGA_COLOR_LIGHT_GREY);
-    } else if (n == 2) {
-        current_color = vga_color(VGA_COLOR_RED, VGA_COLOR_WHITE);
-    }
-
-    screen_clear();
-    if (n == 0){
-        load_home_screen();
-    }
-    kprintf("This is screen %d.\n\n", n + 1);
-    
-    memcpy(states[n].buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
-    states[n].cursor_x = cursor_x;
-    states[n].cursor_y = cursor_y;
-    states[n].color = current_color;
 }
 
 void load_home_screen() {
-    kprintf("Welcome to %s!\n", KERNEL_NAME);
-    kprintf("Kernel from Scratch - KFS_1\n\n");
+    screen_putstring("Welcome to KrnL!\n");
+    screen_putstring("Kernel from Scratch - KFS_1\n\n");
     
-    screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    kprintf("The answer to everything: %d\n", 42);
+    current_screen->color = vga_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    screen_putstring("The answer to everything: 42\n");
     
-    screen_set_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
-    kprintf("System Information:\n");
-    screen_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    kprintf("- Architecture: %s\n", ARCHITECTURE);
-    kprintf("- Boot loader: %s\n", BOOTLOADER);
-    kprintf("- %s successfully loaded!\n\n", KERNEL_NAME);
+    current_screen->color = vga_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
+    screen_putstring("System Information:\n");
+    current_screen->color = vga_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+
+    screen_putstring("- Architecture: ");
+    screen_putstring(ARCHITECTURE);
+    screen_putstring("\n");
+
+    screen_putstring("- Boot loader: ");
+    screen_putstring(BOOTLOADER);
+    screen_putstring("\n");
+
+    screen_putstring("- KrnL successfully loaded!\n\n");
     
-    screen_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-    kprintf("This kernel supports up to 3 screens. Press Alt+F1, Alt+F2 or Alt+F3 to switch between them.\n\n");
+    current_screen->color = vga_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    screen_putstring("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
 }
 
 /* Clear screen */
-void screen_clear(void)
+void screen_clear()
 {
     const size_t size = SCREEN_WIDTH * SCREEN_HEIGHT;
     for (size_t i = 0; i < size; i++) {
-        VGA_BUFFER[i] = vga_entry(' ', current_color);
+        VGA_BUFFER[i] = vga_entry(' ', current_screen->color);
     }
-    cursor_x = 0;
-    cursor_y = 0;
+    current_screen->cursor_x = 0;
+    current_screen->cursor_y = 0;
     update_hardware_cursor();
 }
 
-void screen_scroll(void)
+void screen_scroll()
 {
-    /* Move all lines up */
     for (size_t y = 0; y < SCREEN_HEIGHT - 1; y++) {
         for (size_t x = 0; x < SCREEN_WIDTH; x++) {
             const size_t src_index = (y + 1) * SCREEN_WIDTH + x;
@@ -114,66 +107,65 @@ void screen_scroll(void)
         }
     }
     
-    /* Clear the bottom line */
     for (size_t x = 0; x < SCREEN_WIDTH; x++) {
         const size_t index = (SCREEN_HEIGHT - 1) * SCREEN_WIDTH + x;
-        VGA_BUFFER[index] = vga_entry(' ', current_color);
+        VGA_BUFFER[index] = vga_entry(' ', current_screen->color);
     }
     
-    cursor_y = SCREEN_HEIGHT - 1;
+    current_screen->cursor_y = SCREEN_HEIGHT - 1;
     update_hardware_cursor();
 }
 
 void screen_get_cursor(size_t* x, size_t* y)
 {
-    if (x) *x = cursor_x;
-    if (y) *y = cursor_y;
+    if (x) *x = current_screen->cursor_x;
+    if (y) *y = current_screen->cursor_y;
 }
 
 /* Put character at current cursor position */
 void screen_putchar(char c)
 {
-    size_t old_x = cursor_x;
-    size_t old_y = cursor_y;
+    size_t old_x = current_screen->cursor_x;
+    size_t old_y = current_screen->cursor_y;
 
     if (c == '\n') {
         /* Newline */
-        cursor_x = 0;
-        cursor_y++;
+        current_screen->cursor_x = 0;
+        current_screen->cursor_y++;
     } else if (c == '\t') {
         /* Tab - align to next 4-character boundary */
-        cursor_x = (cursor_x + TAB_WIDTH) & ~(TAB_WIDTH - 1);
+        current_screen->cursor_x = (current_screen->cursor_x + TAB_WIDTH) & ~(TAB_WIDTH - 1);
     } else if (c == '\r') {
         /* Carriage return */
-        cursor_x = 0;
+        current_screen->cursor_x = 0;
     } else if (c == '\b') {
         /* Backspace */
-        if (cursor_x > 0) {
-            cursor_x--;
-            const size_t index = cursor_y * SCREEN_WIDTH + cursor_x;
-            VGA_BUFFER[index] = vga_entry(' ', current_color);
+        if (current_screen->cursor_x > 0) {
+            current_screen->cursor_x--;
+            const size_t index = current_screen->cursor_y * SCREEN_WIDTH + current_screen->cursor_x;
+            VGA_BUFFER[index] = vga_entry(' ', current_screen->color);
         }
     } else {
         /* Regular character */
-        const size_t index = cursor_y * SCREEN_WIDTH + cursor_x;
-        VGA_BUFFER[index] = vga_entry(c, current_color);
-        cursor_x++;
+        const size_t index = current_screen->cursor_y * SCREEN_WIDTH + current_screen->cursor_x;
+        VGA_BUFFER[index] = vga_entry(c, current_screen->color);
+        current_screen->cursor_x++;
     }
     
     /* Handle line wrap */
-    if (cursor_x >= SCREEN_WIDTH) {
-        cursor_x = 0;
-        cursor_y++;
+    if (current_screen->cursor_x >= SCREEN_WIDTH) {
+        current_screen->cursor_x = 0;
+        current_screen->cursor_y++;
     }
     
     /* Handle screen overflow */
-    if (cursor_y >= SCREEN_HEIGHT) {
+    if (current_screen->cursor_y >= SCREEN_HEIGHT) {
         screen_scroll();
     }
 
     // Debug output - show cursor movement
-    size_t save_x = cursor_x;
-    size_t save_y = cursor_y;
+    size_t save_x = current_screen->cursor_x;
+    size_t save_y = current_screen->cursor_y;
     
     // Show at position 16 (after keyboard debug)
     uint8_t debug_color = VGA_COLOR_BLACK | VGA_COLOR_LIGHT_GREY << 4;
@@ -186,21 +178,20 @@ void screen_putchar(char c)
     VGA_BUFFER[22] = vga_entry('0' + old_y%10, debug_color);
     VGA_BUFFER[23] = vga_entry('-', debug_color);
     VGA_BUFFER[24] = vga_entry('>', debug_color);
-    VGA_BUFFER[25] = vga_entry('0' + cursor_x/10, debug_color);
-    VGA_BUFFER[26] = vga_entry('0' + cursor_x%10, debug_color);
+    VGA_BUFFER[25] = vga_entry('0' + current_screen->cursor_x/10, debug_color);
+    VGA_BUFFER[26] = vga_entry('0' + current_screen->cursor_x%10, debug_color);
     VGA_BUFFER[27] = vga_entry(',', debug_color);
-    VGA_BUFFER[28] = vga_entry('0' + cursor_y/10, debug_color);
-    VGA_BUFFER[29] = vga_entry('0' + cursor_y%10, debug_color);
+    VGA_BUFFER[28] = vga_entry('0' + current_screen->cursor_y/10, debug_color);
+    VGA_BUFFER[29] = vga_entry('0' + current_screen->cursor_y%10, debug_color);
     VGA_BUFFER[30] = vga_entry(' ', debug_color);
     VGA_BUFFER[31] = vga_entry(c, debug_color);  // Show the character
 
-    cursor_x = save_x;
-    cursor_y = save_y;
+    current_screen->cursor_x = save_x;
+    current_screen->cursor_y = save_y;
     
     update_hardware_cursor();
 }
 
-/* Put string on screen */
 void screen_putstring(const char* str)
 {
     const size_t len = strlen(str);
@@ -209,37 +200,19 @@ void screen_putstring(const char* str)
     }
 }
 
-/* Set text color */
-void screen_set_color(enum vga_color fg, enum vga_color bg)
-{
-    current_color = vga_color(fg, bg);
-}
-
-/* Set cursor position */
 void screen_set_cursor(size_t x, size_t y)
 {
     if (x < SCREEN_WIDTH && y < SCREEN_HEIGHT) {
-        cursor_x = x;
-        cursor_y = y;
+        current_screen->cursor_x = x;
+        current_screen->cursor_y = y;
         update_hardware_cursor();
     }
 }
 
-void switch_screen(int n) {
-    if ((n < 0 || n > MAX_SCREENS) || n == current_screen) return;
-
-    memcpy(states[current_screen].buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
-    states[current_screen].cursor_x = cursor_x;
-    states[current_screen].cursor_y = cursor_y;
-    states[current_screen].color = current_color;
-
-    init_screen_if_needed(n);
-
-    memcpy((void*)VGA_BUFFER, states[n].buffer, SCREEN_SIZE);
-    cursor_x = states[n].cursor_x;
-    cursor_y = states[n].cursor_y;
-    current_color = states[n].color;
-    current_screen = n;
-
+struct screen_state* switch_screen(int n) {
+    memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
+    current_screen = &states[n];
+    memcpy((void*)VGA_BUFFER, current_screen->buffer, SCREEN_SIZE);
     update_hardware_cursor();
+    return current_screen;
 }
