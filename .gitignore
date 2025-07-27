@@ -52,3 +52,6 @@ docs/*.pdf
 docs/*.aux
 docs/*.toc
 docs/*.out
+
+kfs
+kfs.iso
