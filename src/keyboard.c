@@ -288,7 +288,6 @@ void keyboard_handler(void)
                         input_length = 0;
                         input_cursor = 0;
                         input_buffer[0] = '\0';
-                        screen_putchar('\n');
                     }
                 } else if (c == '\b') { // Backspace
                     if (input_cursor > 0 && input_length > 0) {

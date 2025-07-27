@@ -5,22 +5,20 @@
 static struct screen_state states[MAX_SCREENS];
 struct screen_state* current_screen;
 
-/* VGA text buffer address */
 static volatile uint16_t* const VGA_BUFFER = (uint16_t*)0xB8000;
 
-/* Helper function to create VGA entry */
+// Helper function to create VGA entry */
 static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 {
     return (uint16_t)uc | (uint16_t)color << 8;
 }
 
-/* Helper function to create color attribute */
+// Helper function to create color attribute */
 static inline uint8_t vga_color(enum vga_color fg, enum vga_color bg)
 {
     return fg | bg << 4;
 }
 
-/* Update the hardware cursor position */
 static void update_hardware_cursor()
 {
     uint16_t pos = (uint16_t)(current_screen->cursor_y * SCREEN_WIDTH + current_screen->cursor_x);
@@ -62,14 +60,14 @@ void screen_init(void)
 
 void load_home_screen() {
     screen_putstring("Welcome to KrnL!\n");
-    screen_putstring("Kernel from Scratch - KFS_1\n\n");
+    screen_putstring("Kernel from Scratch - 1\n\n");
     
-    current_screen->color = vga_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     screen_putstring("The answer to everything: 42\n");
     
-    current_screen->color = vga_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
+    screen_set_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
     screen_putstring("System Information:\n");
-    current_screen->color = vga_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    screen_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
 
     screen_putstring("- Architecture: ");
     screen_putstring(ARCHITECTURE);
@@ -81,7 +79,7 @@ void load_home_screen() {
 
     screen_putstring("- KrnL successfully loaded!\n\n");
     
-    current_screen->color = vga_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
+    screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     screen_putstring("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
 }
 
@@ -122,6 +120,12 @@ void screen_get_cursor(size_t* x, size_t* y)
     if (y) *y = current_screen->cursor_y;
 }
 
+void screen_set_color(enum vga_color fg, enum vga_color bg)
+{
+    current_screen->color = vga_color(fg, bg);
+    update_hardware_cursor();
+}
+
 /* Put character at current cursor position */
 void screen_putchar(char c)
 {
@@ -129,36 +133,31 @@ void screen_putchar(char c)
     size_t old_y = current_screen->cursor_y;
 
     if (c == '\n') {
-        /* Newline */
         current_screen->cursor_x = 0;
         current_screen->cursor_y++;
     } else if (c == '\t') {
-        /* Tab - align to next 4-character boundary */
         current_screen->cursor_x = (current_screen->cursor_x + TAB_WIDTH) & ~(TAB_WIDTH - 1);
     } else if (c == '\r') {
-        /* Carriage return */
         current_screen->cursor_x = 0;
     } else if (c == '\b') {
-        /* Backspace */
         if (current_screen->cursor_x > 0) {
             current_screen->cursor_x--;
             const size_t index = current_screen->cursor_y * SCREEN_WIDTH + current_screen->cursor_x;
             VGA_BUFFER[index] = vga_entry(' ', current_screen->color);
         }
     } else {
-        /* Regular character */
         const size_t index = current_screen->cursor_y * SCREEN_WIDTH + current_screen->cursor_x;
         VGA_BUFFER[index] = vga_entry(c, current_screen->color);
         current_screen->cursor_x++;
     }
-    
-    /* Handle line wrap */
-    if (current_screen->cursor_x >= SCREEN_WIDTH) {
+
+    // line overflow
+    if (current_screen->cursor_x > SCREEN_WIDTH) {
         current_screen->cursor_x = 0;
         current_screen->cursor_y++;
     }
     
-    /* Handle screen overflow */
+    // screen overflow
     if (current_screen->cursor_y >= SCREEN_HEIGHT) {
         screen_scroll();
     }
@@ -209,10 +208,11 @@ void screen_set_cursor(size_t x, size_t y)
     }
 }
 
-struct screen_state* switch_screen(int n) {
+void switch_screen(int n) {
+    if ((n < 0 || n >= MAX_SCREENS) || current_screen == &states[n]) return;
+
     memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
     current_screen = &states[n];
     memcpy((void*)VGA_BUFFER, current_screen->buffer, SCREEN_SIZE);
     update_hardware_cursor();
-    return current_screen;
 }
