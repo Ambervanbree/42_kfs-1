@@ -3,10 +3,9 @@
 
 #include "kernel.h"
 
-
 #define SCREEN_WIDTH  80
 #define SCREEN_HEIGHT 25
-#define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2) //Byte 1: The ASCII character, Byte 2: The attribute byte (color information)
+#define SCREEN_SIZE (SCREEN_WIDTH*SCREEN_HEIGHT*2) // Byte 1: The ASCII character, Byte 2: The attribute byte (color information)
 #define MAX_SCREENS 3
 #define TAB_WIDTH 4
 
@@ -16,6 +15,8 @@ struct screen_state {
     uint8_t buffer[SCREEN_SIZE];
     size_t cursor_x;
     size_t cursor_y;
+    size_t input_length;
+    size_t input_cursor;
     uint8_t color;
 };
 

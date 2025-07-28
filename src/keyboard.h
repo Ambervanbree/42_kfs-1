@@ -3,7 +3,6 @@
 
 #include "kernel.h"
 
-/* Interrupt descriptor table entry */
 struct idt_entry {
     uint16_t base_lo;
     uint16_t sel;
@@ -12,15 +11,13 @@ struct idt_entry {
     uint16_t base_hi;
 } __attribute__((packed));
 
-/* Interrupt descriptor table pointer */
 struct idt_ptr {
     uint16_t limit;
     uint32_t base;
 } __attribute__((packed));
 
-/* Interrupt numbers */
 #define IRQ0 32
-#define IRQ1 33  /* Keyboard interrupt */
+#define IRQ1 33
 #define IRQ2 34
 #define IRQ3 35
 #define IRQ4 36
@@ -36,13 +33,11 @@ struct idt_ptr {
 #define IRQ14 46
 #define IRQ15 47
 
-/* PIC ports */
 #define PIC1_COMMAND 0x20
 #define PIC1_DATA    0x21
 #define PIC2_COMMAND 0xA0
 #define PIC2_DATA    0xA1
 
-/* PIC commands */
 #define ICW1_ICW4 0x01
 #define ICW1_SINGLE 0x02
 #define ICW1_INTERVAL4 0x04
@@ -55,7 +50,6 @@ struct idt_ptr {
 #define ICW4_BUF_MASTER 0x0C
 #define ICW4_SFNM 0x10
 
-/* Special key codes */
 #define KEY_ESCAPE     0x01
 #define KEY_BACKSPACE  0x0E
 #define KEY_ENTER      0x1C
@@ -75,23 +69,18 @@ struct idt_ptr {
 #define KEY_F10        0x44
 #define KEY_F11        0x57
 #define KEY_F12        0x58
-
-// Arrow key scancodes (extended)
 #define KEY_ARROW_UP    0x48
 #define KEY_ARROW_DOWN  0x50
 #define KEY_ARROW_LEFT  0x4B
 #define KEY_ARROW_RIGHT 0x4D
 
-/* Keyboard state */
 struct keyboard_state {
     uint8_t shift_pressed;
     uint8_t ctrl_pressed;
-    uint8_t alt_pressed;
     uint8_t caps_lock;
     uint8_t extended_key;
 };
 
-/* Function declarations */
 void interrupt_init(void);
 void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags);
 void keyboard_handler(void);
@@ -99,7 +88,6 @@ void keyboard_init(void);
 void pic_init(void);
 void pic_send_eoi(uint8_t irq);
 
-/* External assembly functions */
 extern void idt_load(void);
 extern void keyboard_handler_asm(void);
 

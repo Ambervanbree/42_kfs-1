@@ -1,7 +1,6 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-/* Basic types */
 typedef unsigned int   uint32_t;
 typedef int            int32_t;
 typedef unsigned short uint16_t;

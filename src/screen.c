@@ -7,13 +7,13 @@ struct screen_state* current_screen;
 
 static volatile uint16_t* const VGA_BUFFER = (uint16_t*)0xB8000;
 
-// Helper function to create VGA entry */
+// helper to create VGA entry
 static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 {
     return (uint16_t)uc | (uint16_t)color << 8;
 }
 
-// Helper function to create color attribute */
+// helper to create color attribute
 static inline uint8_t vga_color(enum vga_color fg, enum vga_color bg)
 {
     return fg | bg << 4;
@@ -59,31 +59,26 @@ void screen_init(void)
 }
 
 void load_home_screen() {
-    screen_putstring("Welcome to KrnL!\n");
-    screen_putstring("Kernel from Scratch - 1\n\n");
+    kprintf("Welcome to KrnL!\n");
+    kprintf("Kernel from Scratch - 1\n\n");
     
     screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    screen_putstring("The answer to everything: 42\n");
+    kprintf("The answer to everything: 42\n");
     
     screen_set_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
-    screen_putstring("System Information:\n");
+    kprintf("System Information:\n");
     screen_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
 
-    screen_putstring("- Architecture: ");
-    screen_putstring(ARCHITECTURE);
-    screen_putstring("\n");
+    kprintf("- Architecture: %s\n", ARCHITECTURE);
 
-    screen_putstring("- Boot loader: ");
-    screen_putstring(BOOTLOADER);
-    screen_putstring("\n");
+    kprintf("Boot loader: %s\n", BOOTLOADER);
 
-    screen_putstring("- KrnL successfully loaded!\n\n");
+    kprintf("- KrnL successfully loaded!\n\n");
     
     screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    screen_putstring("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
+    kprintf("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
 }
 
-/* Clear screen */
 void screen_clear()
 {
     const size_t size = SCREEN_WIDTH * SCREEN_HEIGHT;
@@ -126,12 +121,8 @@ void screen_set_color(enum vga_color fg, enum vga_color bg)
     update_hardware_cursor();
 }
 
-/* Put character at current cursor position */
 void screen_putchar(char c)
 {
-    size_t old_x = current_screen->cursor_x;
-    size_t old_y = current_screen->cursor_y;
-
     if (c == '\n') {
         current_screen->cursor_x = 0;
         current_screen->cursor_y++;
@@ -161,32 +152,6 @@ void screen_putchar(char c)
     if (current_screen->cursor_y >= SCREEN_HEIGHT) {
         screen_scroll();
     }
-
-    // Debug output - show cursor movement
-    size_t save_x = current_screen->cursor_x;
-    size_t save_y = current_screen->cursor_y;
-    
-    // Show at position 16 (after keyboard debug)
-    uint8_t debug_color = VGA_COLOR_BLACK | VGA_COLOR_LIGHT_GREY << 4;
-    VGA_BUFFER[16] = vga_entry('S', debug_color);  // S for Screen
-    VGA_BUFFER[17] = vga_entry(':', debug_color);
-    VGA_BUFFER[18] = vga_entry('0' + old_x/10, debug_color);
-    VGA_BUFFER[19] = vga_entry('0' + old_x%10, debug_color);
-    VGA_BUFFER[20] = vga_entry(',', debug_color);
-    VGA_BUFFER[21] = vga_entry('0' + old_y/10, debug_color);
-    VGA_BUFFER[22] = vga_entry('0' + old_y%10, debug_color);
-    VGA_BUFFER[23] = vga_entry('-', debug_color);
-    VGA_BUFFER[24] = vga_entry('>', debug_color);
-    VGA_BUFFER[25] = vga_entry('0' + current_screen->cursor_x/10, debug_color);
-    VGA_BUFFER[26] = vga_entry('0' + current_screen->cursor_x%10, debug_color);
-    VGA_BUFFER[27] = vga_entry(',', debug_color);
-    VGA_BUFFER[28] = vga_entry('0' + current_screen->cursor_y/10, debug_color);
-    VGA_BUFFER[29] = vga_entry('0' + current_screen->cursor_y%10, debug_color);
-    VGA_BUFFER[30] = vga_entry(' ', debug_color);
-    VGA_BUFFER[31] = vga_entry(c, debug_color);  // Show the character
-
-    current_screen->cursor_x = save_x;
-    current_screen->cursor_y = save_y;
     
     update_hardware_cursor();
 }
