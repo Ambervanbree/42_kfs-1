@@ -60,11 +60,6 @@ build: $(ISO_NAME)
 run: fclean build
 	qemu-system-i386 -cdrom $(ISO_NAME) -boot d -serial mon:stdio
 
-# === Debug Build ===
-debug: CFLAGS += $(DEBUG_FLAGS)
-debug: fclean
-	$(MAKE) build
-
 # === Clean Object Files ===
 clean:
 	rm -rf $(OBJ_DIR) $(ISO_DIR)
