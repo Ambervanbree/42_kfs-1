@@ -126,10 +126,6 @@ void screen_putchar(char c)
     if (c == '\n') {
         current_screen->cursor_x = 0;
         current_screen->cursor_y++;
-    } else if (c == '\t') {
-        current_screen->cursor_x = (current_screen->cursor_x + TAB_WIDTH) & ~(TAB_WIDTH - 1);
-    } else if (c == '\r') {
-        current_screen->cursor_x = 0;
     } else if (c == '\b') {
         if (current_screen->cursor_x > 0) {
             current_screen->cursor_x--;
