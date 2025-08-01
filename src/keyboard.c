@@ -119,21 +119,13 @@ void keyboard_handler(void)
     
     if (!(scancode & 0x80)) {
         // key press
-        size_t x, y;
-        screen_get_cursor(&x, &y);
         if (extended) {
             switch (scancode) {
                 case KEY_ARROW_LEFT:
-                    if (current_screen->input_cursor > 0) {
-                        current_screen->input_cursor--;
-                        screen_set_cursor(current_screen->input_cursor, y);
-                    }
+                    input_move_cursor_left();
                     break;
                 case KEY_ARROW_RIGHT:
-                    if (current_screen->input_cursor < current_screen->input_length) {
-                        current_screen->input_cursor++;
-                        screen_set_cursor(current_screen->input_cursor, y);
-                    }
+                    input_move_cursor_right();
                     break;
             }
             extended = 0;
@@ -223,60 +215,12 @@ void keyboard_handler(void)
                 break;
             default: {
                 char c = scancode_to_ascii(scancode);
-                if (c >= 32 && c <= 126) {
-                    if (current_screen->input_length < SCREEN_WIDTH) {
-                        // shift buffer right from cursor
-                        for (size_t i = current_screen->input_length; i > current_screen->input_cursor; i--) {
-                            current_screen->buffer[i] = current_screen->buffer[i - 1];
-                        }
-                        current_screen->buffer[current_screen->input_cursor] = c;
-                        current_screen->input_length++;
-                        current_screen->buffer[current_screen->input_length] = '\0';
-                        // redraw the line from cursor
-                        size_t x, y;
-                        screen_get_cursor(&x, &y);
-                        for (size_t i = current_screen->input_cursor; i < current_screen->input_length; i++) {
-                            screen_set_cursor(i, y);
-                            screen_putchar(current_screen->buffer[i]);
-                        }
-                        // erase the char after the new end if needed
-                        screen_set_cursor(current_screen->input_length, y);
-                        screen_putchar(' ');
-                        // move cursor to after inserted char
-                        current_screen->input_cursor++;
-                        screen_set_cursor(current_screen->input_cursor, y);
-                    }
-                    // start at new line with line overflow
-                    if (current_screen->input_length >= SCREEN_WIDTH) {
-                        current_screen->input_length = 0;
-                        current_screen->input_cursor = 0;
-                    }
-                } else if (c == '\b') { 
-                    if (current_screen->input_cursor > 0 && current_screen->input_length > 0) {
-                        // shift buffer left from cursor
-                        for (size_t i = current_screen->input_cursor - 1; i < current_screen->input_length - 1; i++) {
-                            current_screen->buffer[i] = current_screen->buffer[i + 1];
-                        }
-                        current_screen->input_length--;
-                        current_screen->buffer[current_screen->input_length] = '\0';
-                        current_screen->input_cursor--;
-                        // redraw the line from cursor
-                        size_t x, y;
-                        screen_get_cursor(&x, &y);
-                        for (size_t i = current_screen->input_cursor; i < current_screen->input_length; i++) {
-                            screen_set_cursor(i, y);
-                            screen_putchar(current_screen->buffer[i]);
-                        }
-                        // erase the char after the new end
-                        screen_set_cursor(current_screen->input_length, y);
-                        screen_putchar(' ');
-                        // move cursor to after deleted char
-                        screen_set_cursor(current_screen->input_cursor, y);
-                    }
+                if (c == '\b') {
+                    input_delete_char_at_cursor();
                 } else if (c == '\n') {
-                    current_screen->input_length = 0;
-                    current_screen->input_cursor = 0;
-                    screen_putchar('\n');
+                    input_newline();
+                } else {
+                    input_insert_char_at_cursor(c);
                 }
                 break;
             }

@@ -51,4 +51,11 @@ void screen_set_color(enum vga_color fg, enum vga_color bg);
 void screen_scroll(void);
 void switch_screen(int n);
 
+// Unified input line management
+void input_insert_char_at_cursor(char c);
+void input_delete_char_at_cursor(void);
+void input_move_cursor_left(void);
+void input_move_cursor_right(void);
+void input_newline(void);
+
 #endif 
