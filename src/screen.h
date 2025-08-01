@@ -17,6 +17,8 @@ struct screen_state {
     size_t cursor_y;
     size_t input_length;
     size_t input_cursor;
+    size_t input_start_x;  // Where input starts on current line
+    size_t input_start_y;  // Line where input starts
     uint8_t color;
 };
 
@@ -57,5 +59,6 @@ void input_delete_char_at_cursor(void);
 void input_move_cursor_left(void);
 void input_move_cursor_right(void);
 void input_newline(void);
+void input_set_start_position(void);
 
 #endif 

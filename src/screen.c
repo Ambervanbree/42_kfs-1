@@ -1,5 +1,6 @@
 #include "screen.h"
 #include "string.h"
+#include "shell.h"
 #include "kprintf.h"
 
 static struct screen_state states[MAX_SCREENS];
@@ -34,6 +35,10 @@ void screen_init(void)
         memset(states[i].buffer, 0, SCREEN_SIZE);
         states[i].cursor_x = 0;
         states[i].cursor_y = 0;
+        states[i].input_length = 0;
+        states[i].input_cursor = 0;
+        states[i].input_start_x = 0;
+        states[i].input_start_y = 0;
         if (i == 0) {
             states[i].color = vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
         } else if (i == 1) {
@@ -208,33 +213,47 @@ void input_insert_char_at_cursor(char c) {
             current_screen->input_length++;
             current_screen->buffer[current_screen->input_length] = '\0';
             
-            // redraw the line from cursor
-            size_t x, y;
-            screen_get_cursor(&x, &y);
-            
-            // Display each character at its correct position
+            // Redraw the input line from the insertion point
+            // Calculate actual screen positions relative to input start
             for (size_t i = current_screen->input_cursor; i < current_screen->input_length; i++) {
-                const size_t index = y * SCREEN_WIDTH + i;
-                VGA_BUFFER[index] = vga_entry(current_screen->buffer[i], current_screen->color);
+                size_t screen_x = current_screen->input_start_x + i;
+                size_t screen_y = current_screen->input_start_y;
+                
+                // Handle line wrapping
+                while (screen_x >= SCREEN_WIDTH) {
+                    screen_x -= SCREEN_WIDTH;
+                    screen_y++;
+                }
+                
+                if (screen_y < SCREEN_HEIGHT) {
+                    const size_t index = screen_y * SCREEN_WIDTH + screen_x;
+                    VGA_BUFFER[index] = vga_entry(current_screen->buffer[i], current_screen->color);
+                }
             }
             
-            // erase the char after the new end if needed
-            if (current_screen->input_length < SCREEN_WIDTH) {
-                const size_t index = y * SCREEN_WIDTH + current_screen->input_length;
+            // Erase the character after the new end if needed
+            size_t end_x = current_screen->input_start_x + current_screen->input_length;
+            size_t end_y = current_screen->input_start_y;
+            while (end_x >= SCREEN_WIDTH) {
+                end_x -= SCREEN_WIDTH;
+                end_y++;
+            }
+            if (end_y < SCREEN_HEIGHT) {
+                const size_t index = end_y * SCREEN_WIDTH + end_x;
                 VGA_BUFFER[index] = vga_entry(' ', current_screen->color);
             }
             
-            // move cursor to after inserted char
+            // Move cursor to after inserted character
             current_screen->input_cursor++;
-            current_screen->cursor_x = current_screen->input_cursor;
-            current_screen->cursor_y = y;
-            
-            // Ensure the cursor position has a space with correct color
-            const size_t cursor_index = y * SCREEN_WIDTH + current_screen->cursor_x;
-            if (current_screen->cursor_x < SCREEN_WIDTH && cursor_index < SCREEN_WIDTH * SCREEN_HEIGHT) {
-                VGA_BUFFER[cursor_index] = vga_entry(' ', current_screen->color);
+            size_t cursor_x = current_screen->input_start_x + current_screen->input_cursor;
+            size_t cursor_y = current_screen->input_start_y;
+            while (cursor_x >= SCREEN_WIDTH) {
+                cursor_x -= SCREEN_WIDTH;
+                cursor_y++;
             }
             
+            current_screen->cursor_x = cursor_x;
+            current_screen->cursor_y = cursor_y;
             update_hardware_cursor();
         }
     }
@@ -250,32 +269,44 @@ void input_delete_char_at_cursor(void) {
         current_screen->buffer[current_screen->input_length] = '\0';
         current_screen->input_cursor--;
         
-        // redraw the line from cursor
-        size_t x, y;
-        screen_get_cursor(&x, &y);
-        
-        // Display each character at its correct position
+        // Redraw the input line from deletion point
         for (size_t i = current_screen->input_cursor; i < current_screen->input_length; i++) {
-            const size_t index = y * SCREEN_WIDTH + i;
-            VGA_BUFFER[index] = vga_entry(current_screen->buffer[i], current_screen->color);
+            size_t screen_x = current_screen->input_start_x + i;
+            size_t screen_y = current_screen->input_start_y;
+            
+            while (screen_x >= SCREEN_WIDTH) {
+                screen_x -= SCREEN_WIDTH;
+                screen_y++;
+            }
+            
+            if (screen_y < SCREEN_HEIGHT) {
+                const size_t index = screen_y * SCREEN_WIDTH + screen_x;
+                VGA_BUFFER[index] = vga_entry(current_screen->buffer[i], current_screen->color);
+            }
         }
         
-        // erase the char after the new end
-        if (current_screen->input_length < SCREEN_WIDTH) {
-            const size_t index = y * SCREEN_WIDTH + current_screen->input_length;
+        // Erase the character after the new end
+        size_t end_x = current_screen->input_start_x + current_screen->input_length;
+        size_t end_y = current_screen->input_start_y;
+        while (end_x >= SCREEN_WIDTH) {
+            end_x -= SCREEN_WIDTH;
+            end_y++;
+        }
+        if (end_y < SCREEN_HEIGHT) {
+            const size_t index = end_y * SCREEN_WIDTH + end_x;
             VGA_BUFFER[index] = vga_entry(' ', current_screen->color);
         }
         
-        // move cursor to correct position
-        current_screen->cursor_x = current_screen->input_cursor;
-        current_screen->cursor_y = y;
-        
-        // Ensure the cursor position has a space with correct color
-        const size_t cursor_index = y * SCREEN_WIDTH + current_screen->cursor_x;
-        if (current_screen->cursor_x < SCREEN_WIDTH && cursor_index < SCREEN_WIDTH * SCREEN_HEIGHT) {
-            VGA_BUFFER[cursor_index] = vga_entry(' ', current_screen->color);
+        // Position cursor after deletion
+        size_t cursor_x = current_screen->input_start_x + current_screen->input_cursor;
+        size_t cursor_y = current_screen->input_start_y;
+        while (cursor_x >= SCREEN_WIDTH) {
+            cursor_x -= SCREEN_WIDTH;
+            cursor_y++;
         }
         
+        current_screen->cursor_x = cursor_x;
+        current_screen->cursor_y = cursor_y;
         update_hardware_cursor();
     }
 }
@@ -283,37 +314,62 @@ void input_delete_char_at_cursor(void) {
 void input_move_cursor_left(void) {
     if (current_screen->input_cursor > 0) {
         current_screen->input_cursor--;
-        size_t x, y;
-        screen_get_cursor(&x, &y);
         
-        // Ensure the cursor position has correct color
-        const size_t cursor_index = y * SCREEN_WIDTH + current_screen->input_cursor;
-        if (current_screen->input_cursor < SCREEN_WIDTH && cursor_index < SCREEN_WIDTH * SCREEN_HEIGHT) {
-            VGA_BUFFER[cursor_index] = vga_entry(' ', current_screen->color);
+        // Calculate new cursor position relative to input start
+        size_t cursor_x = current_screen->input_start_x + current_screen->input_cursor;
+        size_t cursor_y = current_screen->input_start_y;
+        while (cursor_x >= SCREEN_WIDTH) {
+            cursor_x -= SCREEN_WIDTH;
+            cursor_y++;
         }
         
-        screen_set_cursor(current_screen->input_cursor, y);
+        current_screen->cursor_x = cursor_x;
+        current_screen->cursor_y = cursor_y;
+        update_hardware_cursor();
     }
 }
 
 void input_move_cursor_right(void) {
     if (current_screen->input_cursor < current_screen->input_length) {
         current_screen->input_cursor++;
-        size_t x, y;
-        screen_get_cursor(&x, &y);
         
-        // Ensure the cursor position has correct color
-        const size_t cursor_index = y * SCREEN_WIDTH + current_screen->input_cursor;
-        if (current_screen->input_cursor < SCREEN_WIDTH && cursor_index < SCREEN_WIDTH * SCREEN_HEIGHT) {
-            VGA_BUFFER[cursor_index] = vga_entry(' ', current_screen->color);
+        // Calculate new cursor position relative to input start
+        size_t cursor_x = current_screen->input_start_x + current_screen->input_cursor;
+        size_t cursor_y = current_screen->input_start_y;
+        while (cursor_x >= SCREEN_WIDTH) {
+            cursor_x -= SCREEN_WIDTH;
+            cursor_y++;
         }
         
-        screen_set_cursor(current_screen->input_cursor, y);
+        current_screen->cursor_x = cursor_x;
+        current_screen->cursor_y = cursor_y;
+        update_hardware_cursor();
     }
 }
 
-void input_newline(void) {
+void input_set_start_position(void) {
+    // Set input start position to current cursor position
+    current_screen->input_start_x = current_screen->cursor_x;
+    current_screen->input_start_y = current_screen->cursor_y;
     current_screen->input_length = 0;
     current_screen->input_cursor = 0;
+}
+
+void input_newline(void) {
+    // Null-terminate the current input buffer
+    current_screen->buffer[current_screen->input_length] = '\0';
+    
+    // Move to new line first
     screen_putchar('\n');
+    
+    // Process the command if there's input
+    if (current_screen->input_length > 0) {
+        shell_process_input((char*)current_screen->buffer);
+    } else {
+        shell_print_prompt();
+    }
+    
+    // Reset input buffer
+    current_screen->input_length = 0;
+    current_screen->input_cursor = 0;
 }
