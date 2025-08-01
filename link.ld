@@ -14,6 +14,14 @@ SECTIONS
         *(.data)
     }
 
+    /* Place GDT section after data but at a known location */
+    . = ALIGN(8);
+    _gdt_start = .;
+    .gdt_section : {
+        *(.gdt_section)
+    }
+    _gdt_end = .;
+
     .bss : {
         /* Mark the start of the .bss section for zeroing in boot.s */
         __bss_start = .;

@@ -29,7 +29,7 @@ ASM_FILES := boot.s interrupt.s gdt.s
 ASM_SRCS  := $(addprefix $(ASM_DIR)/, $(ASM_FILES))
 ASM_OBJS  := $(ASM_SRCS:$(ASM_DIR)/%.s=$(OBJ_DIR)/%.o)
 
-OBJS     := $(C_OBJS) $(ASM_OBJS) 
+OBJS     := $(C_OBJS) $(ASM_OBJS)
 
 # === Default Rule ===
 all: build
