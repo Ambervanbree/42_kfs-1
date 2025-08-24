@@ -1,50 +1,60 @@
-section .note.GNU-stack noalloc noexec nowrite progbits
-
+; Multiboot header - tells GRUB this is a valid kernel
 section .multiboot
     align 4
-    dd 0x1BADB002          ; magic number
-    dd 0x0                 ; flags
-    dd -(0x1BADB002 + 0x0) ; checksum
+    dd 0x1BADB002          ; Magic number that GRUB looks for to identify kernel
+    dd 0x0                 ; Flags (0 = no special requirements)
+    dd -(0x1BADB002 + 0x0) ; Checksum to validate header integrity
 
+; Main code section - contains all executable instructions
 section .text
-    align 16
-    global start
+    align 16                ; Align to 16-byte boundary for optimal performance
+    global start            ; Make 'start' symbol visible to linker
 
+; Uninitialized data section - contains stack space
+section .bss
+    align 16                ; Align stack to 16-byte boundary
+stack_bottom:
+    resb 4096              ; Reserve 4KB (4096 bytes) for stack space
+stack_top:                  ; Top of stack (ESP will point here)
+
+; Now all the actual code and data
+section .text
 start:
-    extern kernel_main
-    extern gdt_load
-    extern gdt_flush
-    extern __bss_start      ; Symbol from linker script: start of .bss
-    extern __bss_end        ; Symbol from linker script: end of .bss
+    ; Declare external symbols we'll use
+    extern kernel_main      ; Main kernel function written in C
+    extern gdt_load         ; Function to load Global Descriptor Table
+    extern gdt_flush        ; Function to activate new GDT
+    extern __bss_start      ; Symbol from linker script: start of .bss section
+    extern __bss_end        ; Symbol from linker script: end of .bss section
     
     ; ------------------------------------------------------
     ; Zero the .bss section (all uninitialized globals/statics)
+    ; This is CRITICAL: without this, global variables would have random values!
     ; ------------------------------------------------------
-    mov edi, __bss_start    ; Destination pointer (start of .bss)
-    mov ecx, __bss_end      ; End of .bss
-    sub ecx, __bss_start    ; ecx = size in bytes
-    shr ecx, 2              ; ecx = size in dwords (divide by 4)
-    xor eax, eax            ; Zero value
-    rep stosd               ; Fill ECX dwords at [EDI] with EAX (zero)
+    mov edi, __bss_start    ; EDI = destination pointer (start of .bss)
+    mov ecx, __bss_end      ; ECX = end address of .bss
+    sub ecx, __bss_start    ; ECX = size of .bss section in bytes
+    shr ecx, 2              ; ECX = size in dwords (divide by 4, since we store 4 bytes at a time)
+    xor eax, eax            ; EAX = 0 (we'll use this to zero memory)
+    rep stosd               ; Repeat: store EAX (0) at [EDI], increment EDI, decrement ECX
     ; ------------------------------------------------------
     
-    ; Set up stack
-    mov esp, stack_top
+    ; Set up stack - ESP points to top of stack (stacks grow downward), load GDT need to use stack
+    mov esp, stack_top      ; Set stack pointer to top of our 4KB stack area
     
-    ; Load GDT
-    call gdt_load
-    call gdt_flush
+    ; Load and activate Global Descriptor Table (GDT)
+    ; GDT defines memory segments and their permissions for protected mode
+    call gdt_load           ; Load GDT into CPU's GDT register
+    call gdt_flush          ; Flush CPU caches and activate new GDT
     
-    ; Call kernel main
+    ; Call the main kernel function written in C
+    ; From this point on, we're running in the C kernel code
     call kernel_main
-    cli
+    
+    ; If kernel_main ever returns (it shouldn't), disable interrupts and halt
+    cli                     ; Clear interrupt flag (disable interrupts)
 
+; Infinite loop - kernel should never reach here
 hang:
-    hlt
-    jmp hang
-
-section .bss
-    align 16
-stack_bottom:
-    resb 4096         ; 4 KB stack
-stack_top:
+    hlt                     ; Halt CPU (wait for interrupt)
+    jmp hang               ; Jump back to halt (in case of spurious wake-up)
