@@ -1,4 +1,4 @@
-# KFS_1
+# KFS
 
 This is the first project in the "Kernel From Scratch"-branch of 42 Paris.
 
