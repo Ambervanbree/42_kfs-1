@@ -32,8 +32,5 @@ void cmd_echo(int argc, char **argv);
 void cmd_reboot(int argc, char **argv);
 void cmd_halt(int argc, char **argv);
 void cmd_gdt_info(int argc, char **argv);
-void cmd_stack_info(int argc, char **argv);
-void cmd_memory_info(int argc, char **argv);
-void cmd_uptime(int argc, char **argv);
 
 #endif

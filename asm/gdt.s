@@ -98,6 +98,9 @@ gdt_setup_at_required_address:
     mov es, ax
     mov fs, ax
     mov gs, ax
+    
+    ; Load stack segment separately
+    mov ax, 0x18
     mov ss, ax
     
     pop edi
@@ -122,5 +125,8 @@ gdt_flush:
     mov es, ax
     mov fs, ax
     mov gs, ax
+    
+    ; Load stack segment separately
+    mov ax, 0x18
     mov ss, ax
     ret 

@@ -14,7 +14,6 @@ static uint32_t boot_time = 0;
 
 // Forward declarations for new commands
 void cmd_version(int argc, char **argv);
-void cmd_screen_info(int argc, char **argv);
 void cmd_shutdown(int argc, char **argv);
 
 // Command table
@@ -25,11 +24,7 @@ static struct shell_command commands[] = {
     {"reboot", "Restart the system", cmd_reboot},
     {"halt", "Stop CPU (requires manual restart)", cmd_halt},
     {"gdt", "Display GDT information", cmd_gdt_info},
-    {"stack", "Display stack information", cmd_stack_info},
-    {"memory", "Display memory information", cmd_memory_info},
-    {"uptime", "Display system uptime", cmd_uptime},
     {"version", "Display kernel version", cmd_version},
-    {"screen", "Display screen information", cmd_screen_info},
     {"shutdown", "Shutdown system gracefully", cmd_shutdown},
     {NULL, NULL, NULL} // Sentinel
 };
@@ -249,59 +244,6 @@ void cmd_gdt_info(int argc, char **argv)
     kprintf("    FS: 0x%x, GS: 0x%x, SS: 0x%x\n", fs, gs, ss);
 }
 
-void cmd_stack_info(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    
-    uint32_t esp, ebp;
-    asm volatile("mov %%esp, %0" : "=r"(esp));
-    asm volatile("mov %%ebp, %0" : "=r"(ebp));
-    
-    kprintf("Stack Information:\n");
-    kprintf("  Current ESP (Stack Pointer): 0x%x\n", esp);
-    kprintf("  Current EBP (Base Pointer):  0x%x\n", ebp);
-    kprintf("  Stack grows downward from high to low addresses\n");
-    
-    // Show some stack contents
-    kprintf("  Stack contents (last 8 dwords):\n");
-    uint32_t *stack_ptr = (uint32_t *)esp;
-    for (int i = 0; i < 8; i++) {
-        kprintf("    [ESP+%d]: 0x%x\n", i * 4, stack_ptr[i]);
-    }
-}
-
-void cmd_memory_info(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    
-    kprintf("Memory Information:\n");
-    kprintf("  Kernel loaded at: 0x%x (1 MB)\n", 0x100000);
-    kprintf("  GDT located at:   0x%x\n", 0x00000800);
-    kprintf("  VGA Buffer at:    0x%x\n", 0xB8000);
-    kprintf("  Available memory: Detected by bootloader (GRUB)\n");
-    
-    // Show some memory layout
-    kprintf("  Memory Layout:\n");
-    kprintf("    0x00000000 - 0x000003FF : Interrupt Vector Table\n");
-    kprintf("    0x00000400 - 0x000004FF : BIOS Data Area\n");
-    kprintf("    0x00000800 - 0x00000FFF : GDT Location\n");
-    kprintf("    0x00007C00 - 0x00007DFF : Boot Sector\n");
-    kprintf("    0x000A0000 - 0x000FFFFF : Video Memory & BIOS\n");
-    kprintf("    0x00100000+            : Kernel & Available RAM\n");
-}
-
-void cmd_uptime(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    
-    // For now, just show that we don't have a timer implemented
-    kprintf("System uptime: Timer not implemented yet\n");
-    kprintf("Boot time was: %u ticks since initialization\n", boot_time);
-}
-
 void cmd_version(int argc, char **argv)
 {
     (void)argc;
@@ -313,34 +255,7 @@ void cmd_version(int argc, char **argv)
     kprintf("Features: GDT, Interrupts, Keyboard, VGA Text Mode, Shell\n");
 }
 
-void cmd_screen_info(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    
-    extern struct screen_state* current_screen;
-    
-    kprintf("Screen Information:\n");
-    kprintf("  Resolution: %dx%d characters\n", SCREEN_WIDTH, SCREEN_HEIGHT);
-    kprintf("  Current cursor: (%zu, %zu)\n", current_screen->cursor_x, current_screen->cursor_y);
-    kprintf("  Input buffer length: %zu\n", current_screen->input_length);
-    kprintf("  Input cursor position: %zu\n", current_screen->input_cursor);
-    kprintf("  Current color: 0x%x\n", current_screen->color);
-    kprintf("  Total screens: %d\n", MAX_SCREENS);
-    
-    if (argc > 1 && strcmp(argv[1], "verbose") == 0) {
-        kprintf("  Input buffer content: \"");
-        for (size_t i = 0; i < current_screen->input_length; i++) {
-            char c = current_screen->buffer[i];
-            if (c >= 32 && c <= 126) {
-                kprintf("%c", c);
-            } else {
-                kprintf("\\x%02x", (unsigned char)c);
-            }
-        }
-        kprintf("\"\n");
-    }
-}
+
 
 void cmd_shutdown(int argc, char **argv)
 {
