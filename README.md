@@ -199,3 +199,76 @@ Memory Segments (described by GDT entries):
 │ 0x00000000 - 0xFFFFFFFF            │ ← Stack Segment (selector 0x18)
 │ (4GB, readable, writable, expand)  │
 └─────────────────────────────────────┘
+
+## Memory System (Paging, PMM, Heap, Panics)
+
+This kernel implements a complete, stable, and functional memory subsystem meeting the requirements below.
+
+### What’s implemented
+- **Paging enabled**: Page directory/tables are built at boot; paging is turned on (CR3/CR0.PG). Low memory is identity mapped; a kernel heap region is virtually mapped.
+- **Memory structure with rights**: Page entries carry flags: present (P), writable (W), user (U). While we cannot yet know who accesses memory, flags are set appropriately for kernel/user conceptual separation.
+- **Kernel/User space definition**: Kernel uses supervisor mappings; user mappings may use PAGE_USER. The design supports a high-half split later; for now, low memory identity mapping plus a separate kernel heap region.
+- **Create/get memory pages**: Virtual Memory Manager (VMM) exposes `vmm_map_page`, `vmm_unmap_page`, `vmm_get_mapping`. Physical frames come from the Physical Memory Manager (PMM).
+- **Allocate/free/get size (virtual/physical)**:
+  - Virtual: `kmalloc`, `kfree`, `ksize` on a kernel heap backed by pages.
+  - Physical: `pmm_alloc_page`, `pmm_free_page` manage 4 KiB page frames via a bitmap.
+- **Kernel panics**: `kpanic` (non-fatal) and `kpanic_fatal` (halt) to differentiate recoverable vs fatal conditions.
+- **Size limit (≤ 10 MB)**: PMM is capped to manage at most 10 MB, matching the subject constraint.
+
+### Key files
+- `src/pmm.c` / `src/pmm.h`: Physical Memory Manager (bitmap of page frames, 4 KiB pages)
+- `src/paging.c` / `src/paging.h`: Page tables, enable paging, map/unmap/get mapping
+- `src/kheap.c` / `src/kheap.h`: Simple kernel heap on top of paging
+- `src/panic.c` / `src/panic.h`: Panic and assertion helpers
+- `src/memory.c`: `memory_init(...)` wires PMM → paging → heap
+- `src/kernel_main.c`: calls `memory_init(...)` during boot
+
+### Public APIs
+- PMM (physical frames):
+  - `void pmm_init(uint32_t mem_bytes);`
+  - `void *pmm_alloc_page(void);`
+  - `void pmm_free_page(void *page);`
+  - `uint32_t pmm_free_pages(void);`
+  - `uint32_t pmm_total_pages(void);`
+- Paging (virtual mappings):
+  - `void paging_init(void);`
+  - `void paging_enable(void);`
+  - `int vmm_map_page(uint32_t virt, uint32_t phys, uint32_t flags);`
+  - `void vmm_unmap_page(uint32_t virt);`
+  - `uint32_t vmm_get_mapping(uint32_t virt);`
+- Kernel heap (virtual allocations):
+  - `void kheap_init(void);`
+  - `void *kmalloc(size_t size);`
+  - `void kfree(void *ptr);`
+  - `size_t ksize(void *ptr);`
+- Panics:
+  - `void kpanic(const char *fmt, ...);` (non-fatal)
+  - `void kpanic_fatal(const char *fmt, ...);` (halts)
+
+### How to test in the shell
+- `meminfo` → prints total/free PMM pages
+- `kalloc <bytes>` → returns a virtual address; `ksize <addr>` prints the aligned size; `kfree <addr>` frees it
+- `vget <virt>` → shows PD/PT indices, PTE flags, and the mapped physical address
+- Stress: repeat `kalloc 4096` until out-of-memory → triggers a fatal panic (kernel halts)
+
+### Notes
+- The PMM currently assumes a contiguous region starting at 1 MB and caps to 10 MB (subject requirement). A full implementation can parse the multiboot memory map.
+- Kernel/user permissions are modeled via page flags; true user-mode isolation comes when entering ring 3 code paths later.
+
+### Why these requirements matter (notions and rationale)
+
+- **Enable paging**: Required to use virtual memory. It lets the CPU translate virtual addresses to physical frames and enforce permissions (present/write/user). Without paging, you cannot isolate kernel from future user space or flexibly manage memory.
+
+- **Memory structure with rights**: Page directory/table entries carry rights bits. Even before user-mode tasks, setting rights defines the contract (kernel-only vs user-accessible, read/write). This is the foundation for protection and stability.
+
+- **Define Kernel vs User space**: A clear split prevents user code from corrupting the kernel. It also keeps a stable kernel mapping across processes (each user address space changes, kernel region stays the same).
+
+- **Create/get memory pages (map/unmap/get)**: Page-level APIs (`vmm_map_page`, `vmm_unmap_page`, `vmm_get_mapping`) are the primitive operations on which all allocators, stacks, and heaps rely. They turn raw frames into usable virtual memory.
+
+- **Allocate/free/size variables (heap)**: Higher-level allocation (`kmalloc`, `kfree`, `ksize`) is essential for dynamic data structures in the kernel (buffers, tables). Returning the size aids debugging and introspection.
+
+- **Virtual and physical memory functions**: Managing both layers is necessary. The PMM hands out raw frames; the VMM maps them for use. Keeping these concerns separate simplifies design and future process isolation.
+
+- **Kernel panics (fatal and non-fatal)**: When invariants are broken (e.g., out of memory, corrupted state), the kernel must either stop (to protect data) or warn and continue. Differentiating fatal vs non-fatal avoids unnecessary system halts while still surfacing bugs.
+
+- **≤ 10 MB limit**: Keeps the project scoped and ensures the kernel operates within tight resource bounds. It also matches typical bootloader lab environments and simplifies PMM design before implementing full memory map parsing.
