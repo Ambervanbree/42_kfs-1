@@ -2,6 +2,9 @@
 #include "screen.h"
 #include "string.h"
 #include "kprintf.h"
+#include "pmm.h"
+#include "kheap.h"
+#include "paging.h"
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -15,6 +18,11 @@ static uint32_t boot_time = 0;
 // Forward declarations for new commands
 void cmd_version(int argc, char **argv);
 void cmd_shutdown(int argc, char **argv);
+void cmd_meminfo(int argc, char **argv);
+void cmd_kalloc(int argc, char **argv);
+void cmd_kfree(int argc, char **argv);
+void cmd_ksize(int argc, char **argv);
+void cmd_vget(int argc, char **argv);
 
 // Command table
 static struct shell_command commands[] = {
@@ -26,6 +34,11 @@ static struct shell_command commands[] = {
     {"gdt", "Display GDT information", cmd_gdt_info},
     {"version", "Display kernel version", cmd_version},
     {"shutdown", "Shutdown system gracefully", cmd_shutdown},
+    {"meminfo", "Show memory stats", cmd_meminfo},
+    {"kalloc", "Allocate kernel memory: kalloc <bytes>", cmd_kalloc},
+    {"kfree", "Free kernel memory: kfree <addr>", cmd_kfree},
+    {"ksize", "Get allocated block size: ksize <addr>", cmd_ksize},
+    {"vget", "Show mapping of a virtual addr: vget <virt>", cmd_vget},
     {NULL, NULL, NULL} // Sentinel
 };
 
@@ -300,4 +313,76 @@ void cmd_shutdown(int argc, char **argv)
     kprintf("- Use 'reboot' to restart the system\n");
     kprintf("- Close the VM window manually\n");
     kprintf("- Power off physical machine manually\n");
+}
+
+static uint32_t parse_hex_or_dec(const char *s)
+{
+    uint32_t val = 0;
+    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        s += 2;
+        while (*s) {
+            char c = *s++;
+            uint32_t n;
+            if (c >= '0' && c <= '9') n = c - '0';
+            else if (c >= 'a' && c <= 'f') n = 10 + (c - 'a');
+            else if (c >= 'A' && c <= 'F') n = 10 + (c - 'A');
+            else break;
+            val = (val << 4) | n;
+        }
+        return val;
+    }
+    while (*s && *s >= '0' && *s <= '9') {
+        val = val * 10 + (*s - '0');
+        s++;
+    }
+    return val;
+}
+
+void cmd_meminfo(int argc, char **argv)
+{
+    (void)argc; (void)argv;
+    kprintf("PMM total pages: %d, free pages: %d\n", (int)pmm_total_pages(), (int)pmm_free_pages());
+}
+
+void cmd_kalloc(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: kalloc <bytes>\n"); return; }
+    uint32_t n = parse_hex_or_dec(argv[1]);
+    void *p = kmalloc(n);
+    kprintf("kalloc(%d) -> %x\n", (int)n, (uint32_t)p);
+}
+
+void cmd_kfree(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: kfree <addr>\n"); return; }
+    uint32_t a = parse_hex_or_dec(argv[1]);
+    kfree((void*)a);
+    kprintf("kfree(%x)\n", a);
+}
+
+void cmd_ksize(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: ksize <addr>\n"); return; }
+    uint32_t a = parse_hex_or_dec(argv[1]);
+    size_t s = ksize((void*)a);
+    kprintf("ksize(%x) -> %d\n", a, (int)s);
+}
+
+void cmd_vget(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: vget <virt>\n"); return; }
+    uint32_t virt = parse_hex_or_dec(argv[1]);
+    uint32_t pte = vmm_get_mapping(virt);
+    uint32_t pd_idx = (virt >> 22) & 0x3FF;
+    uint32_t pt_idx = (virt >> 12) & 0x3FF;
+    uint32_t offset = virt & 0xFFF;
+    kprintf("logical: %x (flat seg)\n", virt);
+    kprintf("virtual: %x  pd=%d pt=%d off=%d\n", virt, (int)pd_idx, (int)pt_idx, (int)offset);
+    if (pte == 0) {
+        kprintf("mapping: (not present)\n");
+        return;
+    }
+    uint32_t phys = (pte & 0xFFFFF000) | offset;
+    uint32_t flags = pte & 0xFFF;
+    kprintf("physical: %x  flags: %x\n", phys, flags);
 }

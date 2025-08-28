@@ -21,7 +21,8 @@ OBJ_DIR := obj
 ISO_DIR := iso
 
 # === Source and Object Files ===
-C_FILES  := kernel_main.c screen.c string.c keyboard.c kprintf.c shell.c
+C_FILES  := kernel_main.c screen.c string.c keyboard.c kprintf.c shell.c \
+           panic.c pmm.c paging.c kheap.c memory.c
 C_SRCS   := $(addprefix $(SRC_DIR)/, $(C_FILES))
 C_OBJS   := $(C_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 

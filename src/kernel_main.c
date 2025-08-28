@@ -4,6 +4,10 @@
 #include "kprintf.h"
 #include "keyboard.h"
 #include "shell.h"
+#include "panic.h"
+#include "pmm.h"
+#include "paging.h"
+#include "kheap.h"
 
 // External symbols from GDT
 extern void *gdt;
@@ -19,6 +23,9 @@ void kernel_main(void)
     keyboard_init();
     interrupt_init();
     
+    // Initialize memory (assume 10MB available for now)
+    memory_init(10 * 1024 * 1024);
+
     // Display GDT info
     kprintf("GDT relocated to 0x%x\n", 0x00000800);
     kprintf("Kernel segments: Code=0x08, Data=0x10, Stack=0x18\n");
