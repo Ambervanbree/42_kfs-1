@@ -143,7 +143,7 @@ void screen_putchar(char c)
         current_screen->cursor_x++;
     }
 
-    // line overflow
+    // line overflow //
     if (current_screen->cursor_x > SCREEN_WIDTH) {
         current_screen->cursor_x = 0;
         current_screen->cursor_y++;
@@ -192,18 +192,7 @@ void switch_screen(int n) {
 void input_insert_char_at_cursor(char c) {
     if (c >= 32 && c <= 126) { // printable ASCII characters
         if (current_screen->input_length < SCREEN_SIZE - 1) {
-            // Check if adding this character would exceed screen width
-            if (current_screen->input_length >= SCREEN_WIDTH) {
-                // Move to new line and start fresh
-                current_screen->cursor_x = 0;
-                current_screen->cursor_y++;
-                if (current_screen->cursor_y >= SCREEN_HEIGHT) {
-                    screen_scroll();
-                }
-                current_screen->input_length = 0;
-                current_screen->input_cursor = 0;
-                screen_set_cursor(0, current_screen->cursor_y);
-            }
+            // Allow visual wrapping without resetting input state
             
             // shift buffer right from cursor to make space
             for (size_t i = current_screen->input_length; i > current_screen->input_cursor; i--) {
@@ -224,6 +213,14 @@ void input_insert_char_at_cursor(char c) {
                     screen_x -= SCREEN_WIDTH;
                     screen_y++;
                 }
+                // If we wrapped beyond the bottom, scroll and adjust anchor
+                if (screen_y >= SCREEN_HEIGHT) {
+                    screen_scroll();
+                    if (current_screen->input_start_y > 0) {
+                        current_screen->input_start_y--;
+                    }
+                    screen_y = SCREEN_HEIGHT - 1;
+                }
                 
                 if (screen_y < SCREEN_HEIGHT) {
                     const size_t index = screen_y * SCREEN_WIDTH + screen_x;
@@ -238,6 +235,13 @@ void input_insert_char_at_cursor(char c) {
                 end_x -= SCREEN_WIDTH;
                 end_y++;
             }
+            if (end_y >= SCREEN_HEIGHT) {
+                screen_scroll();
+                if (current_screen->input_start_y > 0) {
+                    current_screen->input_start_y--;
+                }
+                end_y = SCREEN_HEIGHT - 1;
+            }
             if (end_y < SCREEN_HEIGHT) {
                 const size_t index = end_y * SCREEN_WIDTH + end_x;
                 VGA_BUFFER[index] = vga_entry(' ', current_screen->color);
@@ -250,6 +254,13 @@ void input_insert_char_at_cursor(char c) {
             while (cursor_x >= SCREEN_WIDTH) {
                 cursor_x -= SCREEN_WIDTH;
                 cursor_y++;
+            }
+            if (cursor_y >= SCREEN_HEIGHT) {
+                screen_scroll();
+                if (current_screen->input_start_y > 0) {
+                    current_screen->input_start_y--;
+                }
+                cursor_y = SCREEN_HEIGHT - 1;
             }
             
             current_screen->cursor_x = cursor_x;
