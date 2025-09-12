@@ -66,3 +66,30 @@ void pmm_free_page(void *page)
 uint32_t pmm_free_pages(void) { return free_pages; }
 uint32_t pmm_total_pages(void) { return total_pages; }
 
+// Physical memory break - simple implementation
+static void *current_brk = 0;
+
+void *pmm_brk(void *new_brk)
+{
+	if (new_brk == 0) {
+		// Get current break
+		if (current_brk == 0) {
+			current_brk = (void*)PMM_START;
+		}
+		return current_brk;
+	}
+	
+	// Simple implementation: just track the break point
+	// In a real OS, this would manage a physical heap
+	uint32_t new_addr = (uint32_t)new_brk;
+	uint32_t start_addr = PMM_START;
+	uint32_t max_addr = PMM_START + total_pages * PAGE_SIZE;
+	
+	if (new_addr < start_addr || new_addr > max_addr) {
+		return (void*)-1; // Invalid break
+	}
+	
+	current_brk = new_brk;
+	return current_brk;
+}
+

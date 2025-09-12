@@ -5,6 +5,7 @@
 #include "pmm.h"
 #include "kheap.h"
 #include "paging.h"
+#include "vmem.h"
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -23,6 +24,11 @@ void cmd_kalloc(int argc, char **argv);
 void cmd_kfree(int argc, char **argv);
 void cmd_ksize(int argc, char **argv);
 void cmd_vget(int argc, char **argv);
+void cmd_kbrk(int argc, char **argv);
+void cmd_vmalloc(int argc, char **argv);
+void cmd_vfree(int argc, char **argv);
+void cmd_vsize(int argc, char **argv);
+void cmd_vbrk(int argc, char **argv);
 
 // Command table
 static struct shell_command commands[] = {
@@ -38,6 +44,11 @@ static struct shell_command commands[] = {
     {"kalloc", "Allocate kernel memory: kalloc <bytes>", cmd_kalloc},
     {"kfree", "Free kernel memory: kfree <addr>", cmd_kfree},
     {"ksize", "Get allocated block size: ksize <addr>", cmd_ksize},
+    {"kbrk", "Physical memory break: kbrk [new_addr]", cmd_kbrk},
+    {"vmalloc", "Allocate virtual memory: vmalloc <bytes>", cmd_vmalloc},
+    {"vfree", "Free virtual memory: vfree <addr>", cmd_vfree},
+    {"vsize", "Get virtual block size: vsize <addr>", cmd_vsize},
+    {"vbrk", "Virtual memory break: vbrk [new_addr]", cmd_vbrk},
     {"vget", "Show mapping of a virtual addr: vget <virt>", cmd_vget},
     {NULL, NULL, NULL} // Sentinel
 };
@@ -366,6 +377,62 @@ void cmd_ksize(int argc, char **argv)
     uint32_t a = parse_hex_or_dec(argv[1]);
     size_t s = ksize((void*)a);
     kprintf("ksize(%x) -> %d\n", a, (int)s);
+}
+
+void cmd_kbrk(int argc, char **argv)
+{
+    if (argc < 2) {
+        void *brk = kbrk(0);
+        kprintf("kbrk: %x\n", (uint32_t)brk);
+        return;
+    }
+    uint32_t new_brk = parse_hex_or_dec(argv[1]);
+    void *result = kbrk((void*)new_brk);
+    if (result == (void*)-1) {
+        kprintf("kbrk: invalid address %x\n", new_brk);
+    } else {
+        kprintf("kbrk: %x\n", (uint32_t)result);
+    }
+}
+
+void cmd_vmalloc(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: vmalloc <bytes>\n"); return; }
+    uint32_t n = parse_hex_or_dec(argv[1]);
+    void *p = vmalloc(n);
+    kprintf("vmalloc(%d) -> %x\n", (int)n, (uint32_t)p);
+}
+
+void cmd_vfree(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: vfree <addr>\n"); return; }
+    uint32_t a = parse_hex_or_dec(argv[1]);
+    vfree((void*)a);
+    kprintf("vfree(%x)\n", a);
+}
+
+void cmd_vsize(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: vsize <addr>\n"); return; }
+    uint32_t a = parse_hex_or_dec(argv[1]);
+    size_t s = vsize((void*)a);
+    kprintf("vsize(%x) -> %d\n", a, (int)s);
+}
+
+void cmd_vbrk(int argc, char **argv)
+{
+    if (argc < 2) {
+        void *brk = vbrk(0);
+        kprintf("vbrk: %x\n", (uint32_t)brk);
+        return;
+    }
+    uint32_t new_brk = parse_hex_or_dec(argv[1]);
+    void *result = vbrk((void*)new_brk);
+    if (result == (void*)-1) {
+        kprintf("vbrk: invalid address %x\n", new_brk);
+    } else {
+        kprintf("vbrk: %x\n", (uint32_t)result);
+    }
 }
 
 void cmd_vget(int argc, char **argv)

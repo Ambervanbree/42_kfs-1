@@ -110,3 +110,9 @@ size_t ksize(void *ptr)
 	return blk->size;
 }
 
+void *kbrk(void *new_brk)
+{
+	// Delegate to physical memory manager
+	return pmm_brk(new_brk);
+}
+
