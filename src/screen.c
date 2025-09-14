@@ -177,12 +177,24 @@ void screen_set_cursor(size_t x, size_t y)
 }
 
 void switch_screen(int n) {
+    // if ((n < 0 || n >= MAX_SCREENS) || current_screen == &states[n]) return;
+
+    // memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
+    // current_screen = &states[n];
+    // memcpy((void*)VGA_BUFFER, current_screen->buffer, SCREEN_SIZE);
+    // update_hardware_cursor();
     if ((n < 0 || n >= MAX_SCREENS) || current_screen == &states[n]) return;
 
     memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
     current_screen = &states[n];
     memcpy((void*)VGA_BUFFER, current_screen->buffer, SCREEN_SIZE);
     update_hardware_cursor();
+
+    // If input buffer is empty, print prompt and set input start
+    if (current_screen->input_length == 0) {
+        shell_print_prompt();
+        input_set_start_position();
+    }
 }
 
 // Unified input line management functions
