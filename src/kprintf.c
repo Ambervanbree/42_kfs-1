@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include "screen.h"
 
-// helper to print an integer in decimal
+// Helper to print an integer in decimal
 static void print_decimal(int value) {
     char buffer[12];
     int i = 0, is_negative = 0;

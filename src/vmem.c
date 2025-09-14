@@ -80,7 +80,7 @@ void vfree(void *ptr)
 	vmem_block_t *blk = (vmem_block_t*)((uint8_t*)ptr - sizeof(vmem_block_t));
 	blk->free = 1;
 	
-	// Coalesce with adjacent free blocks
+	// Merge with adjacent free blocks if possible, to reduce fragmentation
 	vmem_block_t *cur = vmem_list;
 	while (cur && cur->next) {
 		uint8_t *end_cur = (uint8_t*)cur + sizeof(vmem_block_t) + cur->size;

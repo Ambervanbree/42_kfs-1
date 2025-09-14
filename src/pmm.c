@@ -2,9 +2,6 @@
 #include "panic.h"
 #include "kprintf.h"
 
-// Simple physical memory bitmap
-// Assume contiguous memory starting at 1MB; cap at 10MB as per requirement
-
 #define PMM_START 0x00100000u
 #define PMM_LIMIT_BYTES (10u * 1024u * 1024u)
 

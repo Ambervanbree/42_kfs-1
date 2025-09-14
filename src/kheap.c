@@ -4,8 +4,6 @@
 #include "panic.h"
 #include "kprintf.h"
 
-// Very simple bump + free-list allocator backed by pages
-
 typedef struct block_header {
 	size_t size;
 	int free;
@@ -38,7 +36,7 @@ static void *heap_expand(size_t min_bytes)
 
 void kheap_init(void)
 {
-	// pre-expand by one page to seed free list
+	// Pre-expand by one page to seed free list
 	uint8_t *chunk = (uint8_t*)heap_expand(PAGE_SIZE);
 	free_list = (block_header_t*)chunk;
 	free_list->size = PAGE_SIZE - sizeof(block_header_t);
@@ -62,7 +60,7 @@ static void split_block(block_header_t *blk, size_t size)
 void *kmalloc(size_t size)
 {
 	if (size == 0) return 0;
-	// Align
+	// Round size up to the next multiple of 8 for alignment
 	if (size & 7) size = (size + 7) & ~7u;
 	block_header_t *prev = 0;
 	block_header_t *cur = free_list;
@@ -75,7 +73,7 @@ void *kmalloc(size_t size)
 		prev = cur;
 		cur = cur->next;
 	}
-	// Need to expand heap
+	// If no suitable block is found, expand heap
 	uint8_t *chunk = (uint8_t*)heap_expand(size + sizeof(block_header_t));
 	block_header_t *blk = (block_header_t*)chunk;
 	blk->size = (size + sizeof(block_header_t) <= PAGE_SIZE) ? (PAGE_SIZE - sizeof(block_header_t)) : (size);
@@ -90,7 +88,7 @@ void kfree(void *ptr)
 	if (!ptr) return;
 	block_header_t *blk = (block_header_t*)((uint8_t*)ptr - sizeof(block_header_t));
 	blk->free = 1;
-	// Coalesce naive
+	// If adjacent blocks are free, merge them, to reduce fragmentation
 	block_header_t *cur = free_list;
 	while (cur && cur->next) {
 		uint8_t *end_cur = (uint8_t*)cur + sizeof(block_header_t) + cur->size;
