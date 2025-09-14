@@ -54,7 +54,7 @@ void screen_init(void)
 
         if (i == 0)
             load_home_screen();
-        // kprintf("This is screen %d.\n\n", i + 1);
+        shell_print_prompt();
         memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
         update_hardware_cursor();
     }
@@ -81,7 +81,7 @@ void load_home_screen() {
     kprintf("- KrnL successfully loaded!\n\n");
     
     screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    // kprintf("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
+    kprintf("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
 }
 
 void screen_clear()
@@ -157,8 +157,6 @@ void screen_putchar(char c)
     update_hardware_cursor();
 }
 
-
-
 void screen_putstring(const char* str)
 {
     const size_t len = strlen(str);
@@ -177,29 +175,15 @@ void screen_set_cursor(size_t x, size_t y)
 }
 
 void switch_screen(int n) {
-    // if ((n < 0 || n >= MAX_SCREENS) || current_screen == &states[n]) return;
-
-    // memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
-    // current_screen = &states[n];
-    // memcpy((void*)VGA_BUFFER, current_screen->buffer, SCREEN_SIZE);
-    // update_hardware_cursor();
     if ((n < 0 || n >= MAX_SCREENS) || current_screen == &states[n]) return;
 
     memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
     current_screen = &states[n];
     memcpy((void*)VGA_BUFFER, current_screen->buffer, SCREEN_SIZE);
     update_hardware_cursor();
-
-    // If input buffer is empty, print prompt and set input start
-    if (current_screen->input_length == 0) {
-        shell_print_prompt();
-        input_set_start_position();
-    }
 }
 
 // Unified input line management functions
-
-
 
 void input_insert_char_at_cursor(char c) {
     if (c >= 32 && c <= 126) { // printable ASCII characters
