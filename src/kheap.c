@@ -7,8 +7,12 @@
 typedef struct block_header {
 	size_t size;
 	int free;
+	uint32_t magic;  // Magic number for double free detection
 	struct block_header *next;
 } block_header_t;
+
+#define MAGIC_ALLOCATED 0xDEADBEEF
+#define MAGIC_FREED     0xFEEED000
 
 static uint8_t *heap_base = 0;
 static size_t heap_size = 0;
@@ -66,9 +70,10 @@ void *kmalloc(size_t size)
 	block_header_t *cur = free_list;
 	while (cur) {
 		if (cur->free && cur->size >= size) {
-			split_block(cur, size);
-			cur->free = 0;
-			return (uint8_t*)cur + sizeof(block_header_t);
+		split_block(cur, size);
+		cur->free = 0;
+		cur->magic = MAGIC_ALLOCATED;
+		return (uint8_t*)cur + sizeof(block_header_t);
 		}
 		prev = cur;
 		cur = cur->next;
@@ -78,6 +83,7 @@ void *kmalloc(size_t size)
 	block_header_t *blk = (block_header_t*)chunk;
 	blk->size = (size + sizeof(block_header_t) <= PAGE_SIZE) ? (PAGE_SIZE - sizeof(block_header_t)) : (size);
 	blk->free = 0;
+	blk->magic = MAGIC_ALLOCATED;
 	blk->next = 0;
 	if (prev) prev->next = blk; else free_list = blk;
 	return (uint8_t*)blk + sizeof(block_header_t);
@@ -87,7 +93,23 @@ void kfree(void *ptr)
 {
 	if (!ptr) return;
 	block_header_t *blk = (block_header_t*)((uint8_t*)ptr - sizeof(block_header_t));
+	
+	// Check for double free
+	if (blk->magic == MAGIC_FREED) {
+		kprintf("ERROR: Double free detected at 0x%x (kfree)\n", (uint32_t)ptr);
+		return; // Don't panic, just log and continue
+	}
+	
+	// Check for invalid magic number
+	if (blk->magic != MAGIC_ALLOCATED) {
+		kprintf("ERROR: Invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+		return; // Don't panic, just log and continue
+	}
+	
+	// Mark as freed
 	blk->free = 1;
+	blk->magic = MAGIC_FREED;
+	
 	// If adjacent blocks are free, merge them, to reduce fragmentation
 	block_header_t *cur = free_list;
 	while (cur && cur->next) {
@@ -105,6 +127,12 @@ size_t ksize(void *ptr)
 {
 	if (!ptr) return 0;
 	block_header_t *blk = (block_header_t*)((uint8_t*)ptr - sizeof(block_header_t));
+	
+	// Check if block is still allocated
+	if (blk->magic != MAGIC_ALLOCATED) {
+		return 0; // Block is freed or invalid
+	}
+	
 	return blk->size;
 }
 

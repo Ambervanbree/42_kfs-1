@@ -68,7 +68,7 @@ void load_home_screen() {
     kprintf("Kernel from Scratch - 1\n\n");
     
     screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    kprintf("The answer to everything: 42\n");
+    // kprintf("The answer to everything: 42\n");
     
     screen_set_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
     kprintf("System Information:\n");

@@ -12,8 +12,12 @@ static uint32_t vmem_size = 0;
 typedef struct vmem_block {
 	size_t size;
 	int free;
+	uint32_t magic;  // Magic number for double free detection
 	struct vmem_block *next;
 } vmem_block_t;
+
+#define VMEM_MAGIC_ALLOCATED 0xDEADBEEF
+#define VMEM_MAGIC_FREED     0xFEEED000
 
 static vmem_block_t *vmem_list = 0;
 
@@ -40,6 +44,7 @@ void *vmalloc(size_t size)
 				cur->next = n;
 			}
 			cur->free = 0;
+			cur->magic = VMEM_MAGIC_ALLOCATED;
 			return (uint8_t*)cur + sizeof(vmem_block_t);
 		}
 		prev = cur;
@@ -62,6 +67,7 @@ void *vmalloc(size_t size)
 	vmem_block_t *new_block = (vmem_block_t*)vmem_current;
 	new_block->size = needed_pages * PAGE_SIZE - sizeof(vmem_block_t);
 	new_block->free = 0;
+	new_block->magic = VMEM_MAGIC_ALLOCATED;
 	new_block->next = 0;
 	
 	if (prev) prev->next = new_block;
@@ -78,7 +84,22 @@ void vfree(void *ptr)
 	if (!ptr) return;
 	
 	vmem_block_t *blk = (vmem_block_t*)((uint8_t*)ptr - sizeof(vmem_block_t));
+	
+	// Check for double free
+	if (blk->magic == VMEM_MAGIC_FREED) {
+		kprintf("ERROR: Double free detected at 0x%x (vfree)\n", (uint32_t)ptr);
+		return; // Don't panic, just log and continue
+	}
+	
+	// Check for invalid magic number
+	if (blk->magic != VMEM_MAGIC_ALLOCATED) {
+		kprintf("ERROR: Invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+		return; // Don't panic, just log and continue
+	}
+	
+	// Mark as freed
 	blk->free = 1;
+	blk->magic = VMEM_MAGIC_FREED;
 	
 	// Merge with adjacent free blocks if possible, to reduce fragmentation
 	vmem_block_t *cur = vmem_list;
@@ -97,6 +118,12 @@ size_t vsize(void *ptr)
 {
 	if (!ptr) return 0;
 	vmem_block_t *blk = (vmem_block_t*)((uint8_t*)ptr - sizeof(vmem_block_t));
+	
+	// Check if block is still allocated
+	if (blk->magic != VMEM_MAGIC_ALLOCATED) {
+		return 0; // Block is freed or invalid
+	}
+	
 	return blk->size;
 }
 
