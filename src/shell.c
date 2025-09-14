@@ -6,6 +6,8 @@
 #include "kheap.h"
 #include "paging.h"
 #include "vmem.h"
+#include "user_mem.h"
+#include "process.h"
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -29,6 +31,12 @@ void cmd_vmalloc(int argc, char **argv);
 void cmd_vfree(int argc, char **argv);
 void cmd_vsize(int argc, char **argv);
 void cmd_vbrk(int argc, char **argv);
+void cmd_ualloc(int argc, char **argv);
+void cmd_ufree(int argc, char **argv);
+void cmd_usize(int argc, char **argv);
+void cmd_ps(int argc, char **argv);
+void cmd_fork(int argc, char **argv);
+void cmd_kill(int argc, char **argv);
 
 // Command table
 static struct shell_command commands[] = {
@@ -50,6 +58,12 @@ static struct shell_command commands[] = {
     {"vsize", "Get virtual block size: vsize <addr>", cmd_vsize},
     {"vbrk", "Virtual memory break: vbrk [new_addr]", cmd_vbrk},
     {"vget", "Show mapping of a virtual addr: vget <virt>", cmd_vget},
+    {"ualloc", "Allocate user memory: ualloc <bytes>", cmd_ualloc},
+    {"ufree", "Free user memory: ufree <addr>", cmd_ufree},
+    {"usize", "Get user block size: usize <addr>", cmd_usize},
+    {"ps", "List processes", cmd_ps},
+    {"fork", "Create new process: fork <name>", cmd_fork},
+    {"kill", "Kill process: kill <pid>", cmd_kill},
     {NULL, NULL, NULL} // Sentinel
 };
 
@@ -452,4 +466,60 @@ void cmd_vget(int argc, char **argv)
     uint32_t phys = (pte & 0xFFFFF000) | offset;
     uint32_t flags = pte & 0xFFF;
     kprintf("physical: %x  flags: %x\n", phys, flags);
+}
+
+// User space memory commands
+void cmd_ualloc(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: ualloc <bytes>\n"); return; }
+    uint32_t n = parse_hex_or_dec(argv[1]);
+    void *p = umalloc(n);
+    kprintf("ualloc(%d) -> %x\n", (int)n, (uint32_t)p);
+}
+
+void cmd_ufree(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: ufree <addr>\n"); return; }
+    uint32_t a = parse_hex_or_dec(argv[1]);
+    ufree((void*)a);
+    kprintf("ufree(%x)\n", a);
+}
+
+void cmd_usize(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: usize <addr>\n"); return; }
+    uint32_t a = parse_hex_or_dec(argv[1]);
+    size_t s = usize((void*)a);
+    kprintf("usize(%x) -> %d\n", a, (int)s);
+}
+
+// Process management commands
+void cmd_ps(int argc, char **argv)
+{
+    (void)argc; (void)argv;
+    process_list();
+}
+
+void cmd_fork(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: fork <name>\n"); return; }
+    process_t *proc = process_create(argv[1]);
+    if (proc) {
+        kprintf("Created process %d: %s\n", proc->pid, proc->name);
+    } else {
+        kprintf("Failed to create process\n");
+    }
+}
+
+void cmd_kill(int argc, char **argv)
+{
+    if (argc < 2) { kprintf("Usage: kill <pid>\n"); return; }
+    uint32_t pid = parse_hex_or_dec(argv[1]);
+    process_t *proc = process_find_by_pid(pid);
+    if (proc) {
+        process_destroy(proc);
+        kprintf("Killed process %d\n", pid);
+    } else {
+        kprintf("Process %d not found\n", pid);
+    }
 }

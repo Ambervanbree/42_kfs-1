@@ -54,7 +54,7 @@ void screen_init(void)
 
         if (i == 0)
             load_home_screen();
-        kprintf("This is screen %d.\n\n", i + 1);
+        // kprintf("This is screen %d.\n\n", i + 1);
         memcpy(current_screen->buffer, (void*)VGA_BUFFER, SCREEN_SIZE);
         update_hardware_cursor();
     }
@@ -81,7 +81,7 @@ void load_home_screen() {
     kprintf("- KrnL successfully loaded!\n\n");
     
     screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    kprintf("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
+    // kprintf("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
 }
 
 void screen_clear()

@@ -19,4 +19,7 @@ int  vmm_map_page(uint32_t virt, uint32_t phys, uint32_t flags);
 void vmm_unmap_page(uint32_t virt);
 uint32_t vmm_get_mapping(uint32_t virt);
 
+// Internal paging functions
+uint32_t *virt_to_pte(uint32_t virt, int create);
+
 #endif

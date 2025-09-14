@@ -29,6 +29,27 @@ char* strcpy(char* dest, const char* src)
 }
 
 
+char* strncpy(char* dest, const char* src, size_t n)
+{
+    char* original_dest = dest;
+    size_t i = 0;
+    
+    // Copy up to n characters
+    while (i < n && src[i]) {
+        dest[i] = src[i];
+        i++;
+    }
+    
+    // Pad with null characters if needed
+    while (i < n) {
+        dest[i] = '\0';
+        i++;
+    }
+    
+    return original_dest;
+}
+
+
 char* strcat(char* dest, const char* src)
 {
     char* original_dest = dest;

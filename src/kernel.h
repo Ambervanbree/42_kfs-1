@@ -40,4 +40,8 @@ extern void outb(uint16_t port, uint8_t val);
 // Memory subsystem initialization
 void memory_init(uint32_t mem_bytes);
 
+// User space support
+#include "user_mem.h"
+#include "process.h"
+
 #endif 

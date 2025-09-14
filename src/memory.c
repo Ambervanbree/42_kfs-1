@@ -2,6 +2,8 @@
 #include "pmm.h"
 #include "paging.h"
 #include "kheap.h"
+#include "user_mem.h"
+#include "process.h"
 #include "kprintf.h"
 
 void memory_init(uint32_t mem_bytes)
@@ -13,6 +15,10 @@ void memory_init(uint32_t mem_bytes)
 	paging_enable();
 	// Initialize kernel heap
 	kheap_init();
-	kprintf("Memory subsystem initialized.\n");
+	// Initialize user memory management
+	user_mem_init();
+	// Initialize process management
+	process_init();
+	kprintf("Memory subsystem initialized with user space support.\n");
 }
 

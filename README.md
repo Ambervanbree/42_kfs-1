@@ -272,3 +272,95 @@ This kernel implements a complete, stable, and functional memory subsystem meeti
 - **Kernel panics (fatal and non-fatal)**: When invariants are broken (e.g., out of memory, corrupted state), the kernel must either stop (to protect data) or warn and continue. Differentiating fatal vs non-fatal avoids unnecessary system halts while still surfacing bugs.
 
 - **≤ 10 MB limit**: Keeps the project scoped and ensures the kernel operates within tight resource bounds. It also matches typical bootloader lab environments and simplifies PMM design before implementing full memory map parsing.
+
+# Paging: Page Directory and Page Table (x86, 32-bit, 4KB pages)
+## Entry Format
+
+Both Page Directory Entries (PDEs) and Page Table Entries (PTEs) are 32 bits wide.
+High 20 bits: a physical base address (aligned to 4KB, so the low 12 bits are always 0).
+
+In a PDE → base address of a Page Table.
+In a PTE → base address of a physical page frame.
+
+Low 12 bits: control flags.
+Common Flags
+
+P (Present)
+1 = the page/table is present in physical memory.
+0 = not present (CPU will raise a page fault).
+
+R/W (Read/Write)
+0 = read-only.
+1 = read/write.
+
+U/S (User/Supervisor)
+0 = only kernel can access.
+1 = user mode can also access.
+
+A (Accessed)
+Set by CPU when the page/table is accessed.
+D (Dirty) – only in PTE
+Set by CPU when the page is written.
+
+PS (Page Size) – only in PDE
+0 = PDE points to a Page Table (4KB pages).
+1 = PDE maps directly to a large 4MB page.
+
+Permissions Rule
+Permissions are checked at both PDE and PTE level. The final access right is the most restrictive:
+
+If PDE says read-only, then even if PTE says read/write, the page is read-only.
+If PDE says supervisor-only, then even if PTE says user-accessible, only kernel can access.
+
+Address Translation (4KB pages)
+A 32-bit virtual address is split into three fields:
+| Directory Index (10 bits) | Table Index (10 bits) | Offset (12 bits) |
+Directory Index → select a PDE from the Page Directory.
+PDE contains the physical base address of a Page Table (or a large page).
+Table Index → select a PTE from that Page Table.
+PTE contains the physical base address of a 4KB page frame.
+Offset → added to the page frame base address to get the final physical address.
+
+Memory Coverage
+A Page Table has 1024 entries × 4KB = 4MB coverage.
+A Page Directory has 1024 entries × 4MB = 4GB coverage (full 32-bit space).
+Each Page Directory or Page Table uses 1024 × 4 bytes = 4KB.
+
+## Why Two Levels?
+Scalability:
+One single-level table for 4GB would require 1M entries × 4B = 4MB, always resident in memory.
+With two levels, only the Page Directory (4KB) is always present. Page Tables (4KB each) are allocated on demand.
+
+Flexibility:
+Different regions can have different permissions.
+
+Efficiency:
+4KB page size is a hardware choice:
+4KB = 2¹², which allows 12 bits for page offset.
+It balances memory fragmentation and table size.
+Supported by the CPU’s TLB (fast lookup).
+
+## Who Sets the Flags?
+
+Operating System (OS): builds and updates PDEs/PTEs, decides P bits, permissions, etc.
+CPU: only reads them. If P=0, CPU raises a page fault and lets the OS handle it.
+PDE.P = whether the Page Table exists in memory.
+PTE.P = whether the actual page frame exists in memory.
+
+
+Virtual Memory Layout:
+0x00000000 ┌─────────────────┐
+           │   Reserved      │ ← BIOS, hardware
+0x00100000 ├─────────────────┤ ← Kernel start (identity mapped)
+           │   Kernel Code   │ ← .text section
+0x00101000 ├─────────────────┤ ← Kernel data (identity mapped)
+           │   Kernel Data   │ ← .data section
+0x00102000 ├─────────────────┤ ← Kernel bss (identity mapped)
+           │   Kernel BSS    │ ← .bss section
+0x00C00000 ├─────────────────┤ ← IDENTITY MAPPING ENDS HERE
+           │   UNUSED        │ ← 0x00C00000-0x00FFFFFF (4MB)
+0x01000000 ├─────────────────┤ ← Kernel Heap (kmalloc) starts here
+           │   Dynamic Alloc │ ← ONLY kernel heap
+0x02000000 ├─────────────────┤ ← Virtual Memory (vmalloc) starts here
+           │   Page Alloc    │ ← vmalloc region (NOT kernel heap)
+0x03000000 └─────────────────┘

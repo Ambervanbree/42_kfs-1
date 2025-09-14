@@ -12,6 +12,8 @@ static inline void write_cr0(uint32_t v) { asm volatile("mov %0, %%cr0" : : "r"(
 
 void paging_init(void)
 {
+	// 0x00000000 - 0x00BFFFFF: Virtual = Physical (identity mapped)
+	// 0x00C000000+: Virtual ≠ Physical (non-identity mapped)
 	// Zero PD
 	for (int i = 0; i < 1024; i++) page_directory[i] = 0;
 	// Identity-map first ~12MB using present|write
@@ -36,7 +38,7 @@ void paging_enable(void)
 	kprintf("Paging enabled.\n");
 }
 
-static inline uint32_t *virt_to_pte(uint32_t virt, int create)
+uint32_t *virt_to_pte(uint32_t virt, int create)
 {
 	uint32_t pd_idx = (virt >> 22) & 0x3FF;
 	uint32_t pt_idx = (virt >> 12) & 0x3FF;
