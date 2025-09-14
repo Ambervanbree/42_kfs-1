@@ -84,11 +84,11 @@ To display a character, you write directly to the memory location within this VG
 
 - **GDT entry (Global Descriptor Table entry)**
 A GDT entry is an 8-byte structure that describes a memory segment. Think of it as a "memory region definition" that tells the CPU:
-- Where the segment starts in memory
-- How big the segment is
-- What type of segment it is (code, data, stack)
-- What permissions it has (readable, writable, executable)
-- What privilege level it runs at (kernel mode vs user mode)
+  - Where the segment starts in memory
+  - How big the segment is
+  - What type of segment it is (code, data, stack)
+  - What permissions it has (readable, writable, executable)
+  - What privilege level it runs at (kernel mode vs user mode)
 
 ### GDT Entry Structure (8 bytes total)
 
