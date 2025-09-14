@@ -114,14 +114,52 @@ void vfree(void *ptr)
 	}
 }
 
+// Helper function to validate if a block is properly allocated
+static int is_valid_allocated_block(vmem_block_t *blk)
+{
+	// Check if block is within virtual memory region
+	uint32_t block_addr = (uint32_t)blk;
+	if (block_addr < VMEM_START || block_addr >= vmem_current) {
+		return 0; // Block is outside virtual memory region
+	}
+	
+	// Check if block is properly aligned (should be page-aligned)
+	if (block_addr & (PAGE_SIZE - 1)) {
+		return 0; // Block is not properly aligned
+	}
+	
+	// Check if block is linked in the allocation list
+	vmem_block_t *cur = vmem_list;
+	while (cur) {
+		if (cur == blk) {
+			return 1; // Found in allocation list
+		}
+		cur = cur->next;
+	}
+	
+	return 0; // Not found in allocation list
+}
+
 size_t vsize(void *ptr)
 {
 	if (!ptr) return 0;
+	
+	// Check if pointer is within virtual memory region
+	uint32_t ptr_addr = (uint32_t)ptr;
+	if (ptr_addr < VMEM_START || ptr_addr >= vmem_current) {
+		return 0; // Pointer is outside virtual memory region
+	}
+	
 	vmem_block_t *blk = (vmem_block_t*)((uint8_t*)ptr - sizeof(vmem_block_t));
 	
 	// Check if block is still allocated
 	if (blk->magic != VMEM_MAGIC_ALLOCATED) {
 		return 0; // Block is freed or invalid
+	}
+	
+	// Additional validation: check if block is properly allocated
+	if (!is_valid_allocated_block(blk)) {
+		return 0; // Block is not properly allocated
 	}
 	
 	return blk->size;

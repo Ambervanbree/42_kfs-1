@@ -65,13 +65,11 @@ void screen_init(void)
 
 void load_home_screen() {
     kprintf("Welcome to KrnL!\n");
-    kprintf("Kernel from Scratch - 1\n\n");
     
     screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     // kprintf("The answer to everything: 42\n");
     
     screen_set_color(VGA_COLOR_BROWN, VGA_COLOR_BLACK);
-    kprintf("System Information:\n");
     screen_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
 
     kprintf("- Architecture: %s\n", ARCHITECTURE);
@@ -81,7 +79,6 @@ void load_home_screen() {
     kprintf("- KrnL successfully loaded!\n\n");
     
     screen_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    kprintf("This kernel supports up to 3 screens. Press F1, F2 or F3 to switch between them.\n\n");
 }
 
 void screen_clear()

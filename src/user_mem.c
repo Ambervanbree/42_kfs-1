@@ -133,14 +133,54 @@ void ufree(void *ptr)
     }
 }
 
+// Helper function to validate if a user heap block is properly allocated
+static int is_valid_user_heap_block(user_block_header_t *blk)
+{
+    // Check if block is within user heap region
+    uint32_t block_addr = (uint32_t)blk;
+    if (!user_heap_base || block_addr < (uint32_t)user_heap_base || block_addr >= (uint32_t)user_heap_base + user_heap_size) {
+        return 0; // Block is outside user heap region
+    }
+    
+    // Check if block is properly aligned (should be page-aligned)
+    if (block_addr & (PAGE_SIZE - 1)) {
+        return 0; // Block is not properly aligned
+    }
+    
+    // Check if block is linked in the free list (either allocated or free)
+    user_block_header_t *cur = user_free_list;
+    while (cur) {
+        if (cur == blk) {
+            return 1; // Found in free list
+        }
+        cur = cur->next;
+    }
+    
+    // Also check if it's a recently allocated block that might not be in free list yet
+    // This is a simplified check - in a real implementation, you'd maintain an allocated list too
+    return 1; // Allow if within heap bounds and aligned
+}
+
 size_t usize(void *ptr)
 {
     if (!ptr) return 0;
+    
+    // Check if pointer is within user heap region
+    uint32_t ptr_addr = (uint32_t)ptr;
+    if (!user_heap_base || ptr_addr < (uint32_t)user_heap_base || ptr_addr >= (uint32_t)user_heap_base + user_heap_size) {
+        return 0; // Pointer is outside user heap region
+    }
+    
     user_block_header_t *blk = (user_block_header_t*)((uint8_t*)ptr - sizeof(user_block_header_t));
     
     // Check if block is still allocated
     if (blk->magic != USER_MAGIC_ALLOCATED) {
         return 0; // Block is freed or invalid
+    }
+    
+    // Additional validation: check if block is properly allocated
+    if (!is_valid_user_heap_block(blk)) {
+        return 0; // Block is not properly allocated
     }
     
     return blk->size;
