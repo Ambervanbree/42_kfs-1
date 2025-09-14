@@ -350,7 +350,7 @@ PTE.P = whether the actual page frame exists in memory.
 
 Virtual Memory Layout:
 0x00000000 ┌─────────────────┐
-           │   Reserved      │ ← BIOS, hardware
+           │   BIOS Reserved │ ← BIOS, hardware (1MB)
 0x00100000 ├─────────────────┤ ← Kernel start (identity mapped)
            │   Kernel Code   │ ← .text section
 0x00101000 ├─────────────────┤ ← Kernel data (identity mapped)
@@ -363,4 +363,8 @@ Virtual Memory Layout:
            │   Dynamic Alloc │ ← ONLY kernel heap
 0x02000000 ├─────────────────┤ ← Virtual Memory (vmalloc) starts here
            │   Page Alloc    │ ← vmalloc region (NOT kernel heap)
-0x03000000 └─────────────────┘
+0x08000000 ├─────────────────┤ ← User Space starts here
+           │   User Heap     │ ← umalloc() region (0x08000000-0xBFFFFFFF)
+0xC0000000 ├─────────────────┤ ← Kernel Space starts here
+           │   Kernel Space  │ ← Future kernel virtual space
+0xFFFFFFFF └─────────────────┘
