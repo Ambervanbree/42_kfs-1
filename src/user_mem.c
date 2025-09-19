@@ -109,13 +109,13 @@ void ufree(void *ptr)
     
     // Check for double free
     if (blk->magic == USER_MAGIC_FREED) {
-        kprintf("[ERROR] ufree: double free detected at 0x%x\n", (uint32_t)ptr);
+        kprintf("[ERROR] ufree: double free detected at %x\n", (uint32_t)ptr);
         return;
     }
     
     // Check for invalid magic number
     if (blk->magic != USER_MAGIC_ALLOCATED) {
-        kprintf("[ERROR] ufree: invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+        kprintf("[ERROR] ufree: invalid memory block at %x (magic: %x)\n", (uint32_t)ptr, blk->magic);
         return;
     }
     
@@ -171,7 +171,7 @@ size_t usize(void *ptr)
     // Check if pointer is within user heap region
     uint32_t ptr_addr = (uint32_t)ptr;
 	if (!user_heap_base || ptr_addr < (uint32_t)user_heap_base || ptr_addr >= (uint32_t)user_heap_base + user_heap_size) {
-		kprintf("[ERROR] usize: invalid pointer 0x%x (outside user heap)\n", ptr_addr);
+		kprintf("[ERROR] usize: invalid pointer %x (outside user heap)\n", ptr_addr);
 		return 0; // Pointer is outside user heap region
 	}
     
@@ -179,13 +179,13 @@ size_t usize(void *ptr)
 	
     // Check if block is still allocated
 	if (blk->magic != USER_MAGIC_ALLOCATED) {
-		kprintf("[ERROR] usize: pointer 0x%x refers to non-allocated block (magic=0x%x)\n", ptr_addr, blk->magic);
+		kprintf("[ERROR] usize: pointer %x refers to non-allocated block (magic=%x)\n", ptr_addr, blk->magic);
 		return 0; // Block is freed or invalid
 	}
     
     // Additional validation: check if block is properly allocated
 	if (!is_valid_user_heap_block(blk)) {
-		kprintf("[ERROR] usize: pointer 0x%x fails allocation validation\n", ptr_addr);
+		kprintf("[ERROR] usize: pointer %x fails allocation validation\n", ptr_addr);
 		return 0; // Block is not properly allocated
 	}
     

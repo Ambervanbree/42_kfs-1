@@ -1,14 +1,13 @@
 #include "panic.h"
 #include <stdarg.h>
 
+extern void kprintf(const char *fmt, ...);
+extern void kprintfv(const char *fmt, va_list args);
+
 static void vprint(const char *fmt, va_list ap)
 {
-	// Minimal vprintf bridge using kprintf's %s/%x/%d support
-	// We don't have a full vprintf; implement a tiny subset
-	// For simplicity, reuse kprintf by formatting piecewise
-	// Note: Keep simple to avoid heavy code size
-	(void)ap; // suppress unused for now
-	kprintf(fmt); // best-effort; extend later if needed
+    // Properly forward arguments to the varargs-aware printer
+    kprintfv(fmt, ap);
 }
 
 void kpanic_fatal(const char *fmt, ...)

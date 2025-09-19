@@ -38,10 +38,7 @@ static void print_hex(unsigned int value) {
     }
 }
 
-void kprintf(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-
+void kprintfv(const char *fmt, va_list args) {
     for (; *fmt; ++fmt) {
         if (*fmt == '%') {
             ++fmt;
@@ -57,6 +54,9 @@ void kprintf(const char *fmt, ...) {
             } else if (*fmt == 'x') {
                 unsigned int val = va_arg(args, unsigned int);
                 print_hex(val);
+            } else if (*fmt == 'p') {
+                void *ptr = va_arg(args, void*);
+                print_hex((unsigned int)ptr);
             } else if (*fmt == '%') {
                 screen_putchar('%');
             }
@@ -64,6 +64,11 @@ void kprintf(const char *fmt, ...) {
             screen_putchar(*fmt);
         }
     }
+}
 
+void kprintf(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    kprintfv(fmt, args);
     va_end(args);
 }

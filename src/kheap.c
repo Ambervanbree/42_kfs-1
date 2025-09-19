@@ -16,37 +16,41 @@ typedef struct block_header {
 
 static uint8_t *heap_base = 0;
 static size_t heap_size = 0;
+static size_t heap_used = 0;
 static block_header_t *free_list = 0;
 
-static void *heap_expand(size_t min_bytes)
-{
-	// Allocate whole pages
-	size_t pages = (min_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
-	if (!heap_base) {
-		heap_base = (uint8_t*)0x01000000; // 16MB virtual start for heap (example)
-		heap_size = 0;
-		free_list = 0;
-	}
-	for (size_t i = 0; i < pages; i++) {
-		void *phys = pmm_alloc_page();
-		uint32_t v = (uint32_t)heap_base + heap_size;
-		if (vmm_map_page(v, (uint32_t)phys, PAGE_WRITE) != 0) {
-			kpanic_fatal("Heap map failed\n");
-		}
-		heap_size += PAGE_SIZE;
-	}
-	return heap_base + heap_size - pages * PAGE_SIZE;
-}
+#define KHEAP_VIRTUAL_START 0x01000000  // 16MB virtual start for kernel heap
+#define KHEAP_SIZE         0x00400000  // 4MB total kernel heap size (fits in 10MB limit)
 
 void kheap_init(void)
 {
-	// Pre-expand by one page to seed free list
-	uint8_t *chunk = (uint8_t*)heap_expand(PAGE_SIZE);
-	free_list = (block_header_t*)chunk;
-	free_list->size = PAGE_SIZE - sizeof(block_header_t);
+	// Pre-map the entire kernel heap region at boot time
+	heap_base = (uint8_t*)KHEAP_VIRTUAL_START;
+	heap_size = KHEAP_SIZE;
+	heap_used = 0;
+	free_list = 0;
+	
+	// Map the entire kernel heap region to physical memory
+	size_t pages = KHEAP_SIZE / PAGE_SIZE;
+	for (size_t i = 0; i < pages; i++) {
+		void *phys = pmm_alloc_page();
+		if (!phys) {
+			kpanic_fatal("kheap_init: failed to allocate physical page %d\n", (int)i);
+		}
+		uint32_t v = KHEAP_VIRTUAL_START + (i * PAGE_SIZE);
+		if (vmm_map_page(v, (uint32_t)phys, PAGE_WRITE) != 0) {
+			kpanic_fatal("kheap_init: failed to map page at %x\n", v);
+		}
+	}
+	
+	// Initialize the free list with the entire heap
+	free_list = (block_header_t*)heap_base;
+	free_list->size = KHEAP_SIZE - sizeof(block_header_t);
 	free_list->free = 1;
 	free_list->next = 0;
-	kprintf("Heap initialized at %x size %u\n", (uint32_t)heap_base, (uint32_t)heap_size);
+	
+	kprintf("Kernel heap initialized: %x-%x (%d MB)\n", 
+	        KHEAP_VIRTUAL_START, KHEAP_VIRTUAL_START + KHEAP_SIZE, KHEAP_SIZE / (1024*1024));
 }
 
 static void split_block(block_header_t *blk, size_t size)
@@ -66,27 +70,22 @@ void *kmalloc(size_t size)
 	if (size == 0) return 0;
 	// Round size up to the next multiple of 8 for alignment
 	if (size & 7) size = (size + 7) & ~7u;
-	block_header_t *prev = 0;
+	
 	block_header_t *cur = free_list;
 	while (cur) {
 		if (cur->free && cur->size >= size) {
-		split_block(cur, size);
-		cur->free = 0;
-		cur->magic = MAGIC_ALLOCATED;
-		return (uint8_t*)cur + sizeof(block_header_t);
+			split_block(cur, size);
+			cur->free = 0;
+			cur->magic = MAGIC_ALLOCATED;
+			heap_used += size + sizeof(block_header_t);
+			return (uint8_t*)cur + sizeof(block_header_t);
 		}
-		prev = cur;
 		cur = cur->next;
 	}
-    // If no suitable block is found, expand heap
-	uint8_t *chunk = (uint8_t*)heap_expand(size + sizeof(block_header_t));
-	block_header_t *blk = (block_header_t*)chunk;
-	blk->size = (size + sizeof(block_header_t) <= PAGE_SIZE) ? (PAGE_SIZE - sizeof(block_header_t)) : (size);
-	blk->free = 0;
-	blk->magic = MAGIC_ALLOCATED;
-	blk->next = 0;
-	if (prev) prev->next = blk; else free_list = blk;
-	return (uint8_t*)blk + sizeof(block_header_t);
+	
+	// No suitable block found - heap is full
+	kpanic_fatal("kmalloc: out of memory! Requested %d bytes, heap full\n", (int)size);
+	return 0; // Never reached
 }
 
 void kfree(void *ptr)
@@ -96,19 +95,20 @@ void kfree(void *ptr)
 	
 	// Check for double free
     if (blk->magic == MAGIC_FREED) {
-        kpanic_fatal("kfree: double free detected at 0x%x\n", (uint32_t)ptr);
+        kpanic_fatal("kfree: double free detected at %p\n", (void*)ptr);
         return;
     }
 	
 	// Check for invalid magic number
     if (blk->magic != MAGIC_ALLOCATED) {
-        kpanic_fatal("kfree: invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+        kpanic_fatal("kfree: invalid memory block at %x (magic: %x)\n", (uint32_t)ptr, blk->magic);
         return;
     }
 	
 	// Mark as freed
 	blk->free = 1;
 	blk->magic = MAGIC_FREED;
+	heap_used -= blk->size + sizeof(block_header_t);
 	
 	// If adjacent blocks are free, merge them, to reduce fragmentation
 	block_header_t *cur = free_list;
@@ -158,7 +158,7 @@ size_t ksize(void *ptr)
 	// Check if pointer is within kernel heap region
 	uint32_t ptr_addr = (uint32_t)ptr;
 	if (!heap_base || ptr_addr < (uint32_t)heap_base || ptr_addr >= (uint32_t)heap_base + heap_size) {
-		kprintf("[ERROR]ksize: invalid pointer 0x%x (outside kernel heap)\n", ptr_addr);
+		kprintf("[ERROR]ksize: invalid pointer %x (outside kernel heap)\n", ptr_addr);
 		return 0; // Pointer is outside kernel heap region
 	}
 	
@@ -166,13 +166,13 @@ size_t ksize(void *ptr)
 	
 	// Check if block is still allocated
 	if (blk->magic != MAGIC_ALLOCATED) {
-		kprintf("[ERROR] ksize: pointer 0x%x refers to non-allocated block (magic=0x%x)\n", ptr_addr, blk->magic);
+		kprintf("[ERROR] ksize: pointer %x refers to non-allocated block (magic=%x)\n", ptr_addr, blk->magic);
 		return 0; // Block is freed or invalid
 	}
 	
 	// Additional validation: check if block is properly allocated
 	if (!is_valid_kheap_block(blk)) {
-		kprintf("[ERROR] ksize: pointer 0x%x fails allocation validation\n", ptr_addr);
+		kprintf("[ERROR] ksize: pointer %x fails allocation validation\n", ptr_addr);
 		return 0; // Block is not properly allocated
 	}
 	
@@ -181,7 +181,31 @@ size_t ksize(void *ptr)
 
 void *kbrk(void *new_brk)
 {
-	// Delegate to physical memory manager
-	return pmm_brk(new_brk);
+	if (new_brk == 0) {
+		// Return current break (end of used heap)
+		return (void*)((uint32_t)heap_base + heap_used);
+	}
+	
+	uint32_t new_addr = (uint32_t)new_brk;
+	uint32_t heap_end = (uint32_t)heap_base + heap_size;
+	
+	// Check if new break is within heap bounds
+	if (new_addr < (uint32_t)heap_base || new_addr > heap_end) {
+		return (void*)-1; // Invalid break
+	}
+	
+	// Update used heap size
+	heap_used = new_addr - (uint32_t)heap_base;
+	return new_brk;
+}
+
+uint32_t kheap_used_bytes(void)
+{
+	return heap_used;
+}
+
+uint32_t kheap_total_bytes(void)
+{
+	return heap_size;
 }
 

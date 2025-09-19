@@ -10,7 +10,8 @@ static uint32_t vmem_current = VMEM_START;
 static uint32_t vmem_size = 0;
 
 typedef struct vmem_block {
-	size_t size;
+	size_t size;           // Requested size (what user asked for)
+	size_t capacity;       // Actual capacity (page-aligned)
 	int free;
 	uint32_t magic;  // Magic number for double free detection
 	struct vmem_block *next;
@@ -68,7 +69,8 @@ void *vmalloc(size_t size)
 	
 	// Create new block
 	vmem_block_t *new_block = (vmem_block_t*)vmem_current;
-	new_block->size = needed_pages * PAGE_SIZE - sizeof(vmem_block_t);
+	new_block->size = size;  // Store requested size
+	new_block->capacity = needed_pages * PAGE_SIZE - sizeof(vmem_block_t);  // Store actual capacity
 	new_block->free = 0;
 	new_block->magic = VMEM_MAGIC_ALLOCATED;
 	new_block->next = 0;
@@ -90,13 +92,13 @@ void vfree(void *ptr)
 	
 	// Check for double free
     if (blk->magic == VMEM_MAGIC_FREED) {
-        kpanic_fatal("vfree: double free detected at 0x%x\n", (uint32_t)ptr);
+        kpanic_fatal("vfree: double free detected at %x\n", (uint32_t)ptr);
         return;
     }
 	
 	// Check for invalid magic number
     if (blk->magic != VMEM_MAGIC_ALLOCATED) {
-        kpanic_fatal("vfree: invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+        kpanic_fatal("vfree: invalid memory block at %x (magic: %x)\n", (uint32_t)ptr, blk->magic);
         return;
     }
 	
@@ -150,7 +152,7 @@ size_t vsize(void *ptr)
 	// Check if pointer is within virtual memory region
 	uint32_t ptr_addr = (uint32_t)ptr;
 	if (ptr_addr < VMEM_START || ptr_addr >= vmem_current) {
-		kprintf("[ERROR] vsize: invalid pointer 0x%x (outside vmalloc region)\n", ptr_addr);
+		kprintf("[ERROR] vsize: invalid pointer %x (outside vmalloc region)\n", ptr_addr);
 		return 0; // Pointer is outside virtual memory region
 	}
 	
@@ -158,13 +160,13 @@ size_t vsize(void *ptr)
 	
 	// Check if block is still allocated
 	if (blk->magic != VMEM_MAGIC_ALLOCATED) {
-		kprintf("[ERROR] vsize: pointer 0x%x refers to non-allocated block (magic=0x%x)\n", ptr_addr, blk->magic);
+		kprintf("[ERROR] vsize: pointer %x refers to non-allocated block (magic=%x)\n", ptr_addr, blk->magic);
 		return 0; // Block is freed or invalid
 	}
 	
 	// Additional validation: check if block is properly allocated
 	if (!is_valid_allocated_block(blk)) {
-		kprintf("[ERROR] vsize: pointer 0x%x fails allocation validation\n", ptr_addr);
+		kprintf("[ERROR] vsize: pointer %x fails allocation validation\n", ptr_addr);
 		return 0; // Block is not properly allocated
 	}
 	

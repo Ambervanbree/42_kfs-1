@@ -33,4 +33,33 @@ void cmd_reboot(int argc, char **argv);
 void cmd_halt(int argc, char **argv);
 void cmd_gdt_info(int argc, char **argv);
 
+
+// Forward declarations for new commands
+void cmd_version(int argc, char **argv);
+void cmd_shutdown(int argc, char **argv);
+void cmd_meminfo(int argc, char **argv);
+void cmd_kmalloc(int argc, char **argv);
+void cmd_kfree(int argc, char **argv);
+void cmd_ksize(int argc, char **argv);
+void cmd_vget(int argc, char **argv);
+void cmd_kbrk(int argc, char **argv);
+void cmd_vmalloc(int argc, char **argv);
+void cmd_vfree(int argc, char **argv);
+void cmd_vsize(int argc, char **argv);
+void cmd_vbrk(int argc, char **argv);
+void cmd_umalloc(int argc, char **argv);
+void cmd_ufree(int argc, char **argv);
+void cmd_usize(int argc, char **argv);
+void cmd_ps(int argc, char **argv);
+void cmd_fork(int argc, char **argv);
+void cmd_kill(int argc, char **argv);
+void cmd_page_ops(int argc, char **argv);
+void cmd_alloc_functions(int argc, char **argv);
+void cmd_virtual_physical(int argc, char **argv);
+void cmd_panic_test(int argc, char **argv);
+void cmd_ktest(int argc, char **argv);
+void cmd_write(int argc, char **argv);
+void cmd_read(int argc, char **argv);
+void cmd_present(int argc, char **argv);
+void cmd_rotest(int argc, char **argv);
 #endif

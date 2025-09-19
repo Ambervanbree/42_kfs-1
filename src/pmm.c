@@ -58,7 +58,7 @@ void pmm_free_page(void *page)
 	if (addr < PMM_START) return; // ignore
 	uint32_t idx = (addr - PMM_START) / PAGE_SIZE;
 	if (idx >= total_pages) return;
-    if (!tst_bit(idx)) { kpanic_fatal("PMM: double free page %x\n", addr); return; }
+    if (!tst_bit(idx)) { kpanic_fatal("PMM: double free page %x\n", (uint32_t)addr); return; }
 	clr_bit(idx);
 	free_pages++;
 }
