@@ -27,9 +27,9 @@ void kernel_main(void)
     memory_init(10 * 1024 * 1024);
 
     // Display GDT info
-    kprintf("GDT relocated to 0x%x\n", 0x00000800);
-    kprintf("Kernel segments: Code=0x08, Data=0x10, Stack=0x18\n");
-    kprintf("User segments: Code=0x20, Data=0x28, Stack=0x30\n\n");
+    // kprintf("GDT relocated to 0x%x\n", 0x00000800);
+    // kprintf("Kernel segments: Code=0x08, Data=0x10, Stack=0x18\n");
+    // kprintf("User segments: Code=0x20, Data=0x28, Stack=0x30\n\n");
     
     // Initialize and start the shell
     shell_init();

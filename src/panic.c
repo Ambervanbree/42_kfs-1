@@ -11,14 +11,6 @@ static void vprint(const char *fmt, va_list ap)
 	kprintf(fmt); // best-effort; extend later if needed
 }
 
-void kpanic(const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	vprint(fmt, ap);
-	va_end(ap);
-}
-
 void kpanic_fatal(const char *fmt, ...)
 {
 	va_list ap;

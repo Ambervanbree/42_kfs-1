@@ -78,7 +78,7 @@ void *kmalloc(size_t size)
 		prev = cur;
 		cur = cur->next;
 	}
-	// If no suitable block is found, expand heap
+    // If no suitable block is found, expand heap
 	uint8_t *chunk = (uint8_t*)heap_expand(size + sizeof(block_header_t));
 	block_header_t *blk = (block_header_t*)chunk;
 	blk->size = (size + sizeof(block_header_t) <= PAGE_SIZE) ? (PAGE_SIZE - sizeof(block_header_t)) : (size);
@@ -95,16 +95,16 @@ void kfree(void *ptr)
 	block_header_t *blk = (block_header_t*)((uint8_t*)ptr - sizeof(block_header_t));
 	
 	// Check for double free
-	if (blk->magic == MAGIC_FREED) {
-		kprintf("ERROR: Double free detected at 0x%x (kfree)\n", (uint32_t)ptr);
-		return; // Don't panic, just log and continue
-	}
+    if (blk->magic == MAGIC_FREED) {
+        kpanic_fatal("kfree: double free detected at 0x%x\n", (uint32_t)ptr);
+        return;
+    }
 	
 	// Check for invalid magic number
-	if (blk->magic != MAGIC_ALLOCATED) {
-		kprintf("ERROR: Invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
-		return; // Don't panic, just log and continue
-	}
+    if (blk->magic != MAGIC_ALLOCATED) {
+        kpanic_fatal("kfree: invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+        return;
+    }
 	
 	// Mark as freed
 	blk->free = 1;
@@ -132,9 +132,9 @@ static int is_valid_kheap_block(block_header_t *blk)
 		return 0; // Block is outside kernel heap region
 	}
 	
-	// Check if block is properly aligned (should be page-aligned)
-	if (block_addr & (PAGE_SIZE - 1)) {
-		return 0; // Block is not properly aligned
+	// Check if block header alignment is at least 8 bytes (heap guarantees 8-byte alignment)
+	if (block_addr & 7) {
+		return 0; // Block header is not 8-byte aligned
 	}
 	
 	// Check if block is linked in the free list (either allocated or free)
@@ -158,6 +158,7 @@ size_t ksize(void *ptr)
 	// Check if pointer is within kernel heap region
 	uint32_t ptr_addr = (uint32_t)ptr;
 	if (!heap_base || ptr_addr < (uint32_t)heap_base || ptr_addr >= (uint32_t)heap_base + heap_size) {
+		kprintf("[ERROR]ksize: invalid pointer 0x%x (outside kernel heap)\n", ptr_addr);
 		return 0; // Pointer is outside kernel heap region
 	}
 	
@@ -165,11 +166,13 @@ size_t ksize(void *ptr)
 	
 	// Check if block is still allocated
 	if (blk->magic != MAGIC_ALLOCATED) {
+		kprintf("[ERROR] ksize: pointer 0x%x refers to non-allocated block (magic=0x%x)\n", ptr_addr, blk->magic);
 		return 0; // Block is freed or invalid
 	}
 	
 	// Additional validation: check if block is properly allocated
 	if (!is_valid_kheap_block(blk)) {
+		kprintf("[ERROR] ksize: pointer 0x%x fails allocation validation\n", ptr_addr);
 		return 0; // Block is not properly allocated
 	}
 	

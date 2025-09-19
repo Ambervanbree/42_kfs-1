@@ -35,7 +35,7 @@ static void *user_heap_expand(size_t min_bytes)
         void *phys = pmm_alloc_page();
         uint32_t v = (uint32_t)user_heap_base + user_heap_size;
         if (vmm_map_user_page(v, (uint32_t)phys, PAGE_WRITE | PAGE_USER) != 0) {
-            kpanic_fatal("User heap map failed\n");
+            kprintf("[ERROR] User heap map failed\n");
         }
         user_heap_size += PAGE_SIZE;
     }
@@ -53,6 +53,9 @@ void user_mem_init(void)
 
 static void user_split_block(user_block_header_t *blk, size_t size)
 {
+    if (blk->size < sizeof(user_block_header_t)) {
+        kprintf("[ERROR] user_heap: corrupt block size (%d) before split\n", (int)blk->size);
+    }
     if (blk->size >= size + sizeof(user_block_header_t) + 16) {
         user_block_header_t *n = (user_block_header_t*)((uint8_t*)blk + sizeof(user_block_header_t) + size);
         n->size = blk->size - size - sizeof(user_block_header_t);
@@ -106,14 +109,14 @@ void ufree(void *ptr)
     
     // Check for double free
     if (blk->magic == USER_MAGIC_FREED) {
-        kprintf("ERROR: Double free detected at 0x%x (ufree)\n", (uint32_t)ptr);
-        return; // Don't panic, just log and continue
+        kprintf("[ERROR] ufree: double free detected at 0x%x\n", (uint32_t)ptr);
+        return;
     }
     
     // Check for invalid magic number
     if (blk->magic != USER_MAGIC_ALLOCATED) {
-        kprintf("ERROR: Invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
-        return; // Don't panic, just log and continue
+        kprintf("[ERROR] ufree: invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+        return;
     }
     
     // Mark as freed
@@ -142,10 +145,10 @@ static int is_valid_user_heap_block(user_block_header_t *blk)
         return 0; // Block is outside user heap region
     }
     
-    // Check if block is properly aligned (should be page-aligned)
-    if (block_addr & (PAGE_SIZE - 1)) {
-        return 0; // Block is not properly aligned
-    }
+	// Check if block header alignment is at least 8 bytes (user allocator guarantees 8-byte alignment)
+	if (block_addr & 7) {
+		return 0; // Block header is not 8-byte aligned
+	}
     
     // Check if block is linked in the free list (either allocated or free)
     user_block_header_t *cur = user_free_list;
@@ -164,24 +167,27 @@ static int is_valid_user_heap_block(user_block_header_t *blk)
 size_t usize(void *ptr)
 {
     if (!ptr) return 0;
-    
+	
     // Check if pointer is within user heap region
     uint32_t ptr_addr = (uint32_t)ptr;
-    if (!user_heap_base || ptr_addr < (uint32_t)user_heap_base || ptr_addr >= (uint32_t)user_heap_base + user_heap_size) {
-        return 0; // Pointer is outside user heap region
-    }
+	if (!user_heap_base || ptr_addr < (uint32_t)user_heap_base || ptr_addr >= (uint32_t)user_heap_base + user_heap_size) {
+		kprintf("[ERROR] usize: invalid pointer 0x%x (outside user heap)\n", ptr_addr);
+		return 0; // Pointer is outside user heap region
+	}
     
     user_block_header_t *blk = (user_block_header_t*)((uint8_t*)ptr - sizeof(user_block_header_t));
-    
+	
     // Check if block is still allocated
-    if (blk->magic != USER_MAGIC_ALLOCATED) {
-        return 0; // Block is freed or invalid
-    }
+	if (blk->magic != USER_MAGIC_ALLOCATED) {
+		kprintf("[ERROR] usize: pointer 0x%x refers to non-allocated block (magic=0x%x)\n", ptr_addr, blk->magic);
+		return 0; // Block is freed or invalid
+	}
     
     // Additional validation: check if block is properly allocated
-    if (!is_valid_user_heap_block(blk)) {
-        return 0; // Block is not properly allocated
-    }
+	if (!is_valid_user_heap_block(blk)) {
+		kprintf("[ERROR] usize: pointer 0x%x fails allocation validation\n", ptr_addr);
+		return 0; // Block is not properly allocated
+	}
     
     return blk->size;
 }
@@ -189,10 +195,7 @@ size_t usize(void *ptr)
 // User space page mapping functions
 int vmm_map_user_page(uint32_t virt, uint32_t phys, uint32_t flags)
 {
-    // Check if address is in user space (USER_SPACE_START is 0, so check upper bound)
-    if (virt > USER_SPACE_END) {
-        return -1;  // Invalid user space address
-    }
+
     
     uint32_t *pte = virt_to_pte(virt, 1);
     if (!pte) return -1;
@@ -202,9 +205,7 @@ int vmm_map_user_page(uint32_t virt, uint32_t phys, uint32_t flags)
 
 void vmm_unmap_user_page(uint32_t virt)
 {
-    if (virt > USER_SPACE_END) {
-        return;  // Invalid user space address
-    }
+
     
     uint32_t *pte = virt_to_pte(virt, 0);
     if (!pte) return;
@@ -213,9 +214,7 @@ void vmm_unmap_user_page(uint32_t virt)
 
 uint32_t vmm_get_user_mapping(uint32_t virt)
 {
-    if (virt > USER_SPACE_END) {
-        return 0;  // Invalid user space address
-    }
+
     
     uint32_t *pte = virt_to_pte(virt, 0);
     if (!pte) return 0;
@@ -246,9 +245,7 @@ void user_mem_free_page(void *page)
     if (!page) return;
     
     uint32_t virt = (uint32_t)page;
-    if (virt > USER_SPACE_END) {
-        return;  // Invalid user space address
-    }
+
     
     uint32_t pte = vmm_get_user_mapping(virt);
     if (pte) {

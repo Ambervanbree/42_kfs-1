@@ -20,10 +20,6 @@ void *user_mem_alloc_page(void);
 void user_mem_free_page(void *page);
 
 // User space memory limits
-#define USER_SPACE_START  0x00000000
-#define USER_SPACE_END    0xBFFFFFFF
 #define USER_HEAP_START   0x08000000  // 128MB virtual start for user heap
-#define USER_STACK_START  0xB0000000  // 3GB virtual start for user stack
-#define USER_STACK_SIZE   0x10000000  // 256MB stack size
 
 #endif

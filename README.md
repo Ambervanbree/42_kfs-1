@@ -212,7 +212,7 @@ This kernel implements a complete, stable, and functional memory subsystem meeti
 - **Allocate/free/get size (virtual/physical)**:
   - Virtual: `kmalloc`, `kfree`, `ksize` on a kernel heap backed by pages.
   - Physical: `pmm_alloc_page`, `pmm_free_page` manage 4 KiB page frames via a bitmap.
-- **Kernel panics**: `kpanic` (non-fatal) and `kpanic_fatal` (halt) to differentiate recoverable vs fatal conditions.
+- **Kernel panics**:`kpanic_fatal` (halt) to differentiate recoverable vs fatal conditions.
 - **Size limit (≤ 10 MB)**: PMM is capped to manage at most 10 MB, matching the subject constraint.
 
 ### Key files
@@ -242,14 +242,13 @@ This kernel implements a complete, stable, and functional memory subsystem meeti
   - `void kfree(void *ptr);`
   - `size_t ksize(void *ptr);`
 - Panics:
-  - `void kpanic(const char *fmt, ...);` (non-fatal)
   - `void kpanic_fatal(const char *fmt, ...);` (halts)
 
 ### How to test in the shell
 - `meminfo` → prints total/free PMM pages
-- `kalloc <bytes>` → returns a virtual address; `ksize <addr>` prints the aligned size; `kfree <addr>` frees it
+- `kmalloc <bytes>` → returns a virtual address; `ksize <addr>` prints the aligned size; `kfree <addr>` frees it
 - `vget <virt>` → shows PD/PT indices, PTE flags, and the mapped physical address
-- Stress: repeat `kalloc 4096` until out-of-memory → triggers a fatal panic (kernel halts)
+- Stress: repeat `kmalloc 4096` until out-of-memory → triggers a fatal panic (kernel halts)
 
 ### Notes
 - The PMM currently assumes a contiguous region starting at 1 MB and caps to 10 MB (subject requirement). A full implementation can parse the multiboot memory map.

@@ -19,6 +19,9 @@ void pmm_init(uint32_t mem_size_bytes)
 {
 	if (mem_size_bytes > PMM_LIMIT_BYTES) mem_size_bytes = PMM_LIMIT_BYTES;
 	total_pages = mem_size_bytes / PAGE_SIZE;
+    if (total_pages == 0) {
+        kpanic_fatal("PMM: no usable memory detected\n");
+    }
 	free_pages = 0;
 	for (uint32_t i = 0; i < (sizeof(bitmap)/sizeof(bitmap[0])); i++) bitmap[i] = 0xFFFFFFFFu; // mark all used
 	// Mark available pages as free starting from PMM_START
@@ -33,7 +36,7 @@ void pmm_init(uint32_t mem_size_bytes)
 	for (uint32_t i = 0; i < reserve_pages; i++) {
 		if (!tst_bit(i)) { set_bit(i); free_pages--; }
 	}
-	kprintf("PMM: total=%u pages, free=%u pages\n", total_pages, free_pages);
+	kprintf("PMM: total=%d pages, free=%d pages\n", total_pages, free_pages);
 }
 
 void *pmm_alloc_page(void)
@@ -55,7 +58,7 @@ void pmm_free_page(void *page)
 	if (addr < PMM_START) return; // ignore
 	uint32_t idx = (addr - PMM_START) / PAGE_SIZE;
 	if (idx >= total_pages) return;
-	if (!tst_bit(idx)) { kpanic("Double free page %x\n", addr); return; }
+    if (!tst_bit(idx)) { kpanic_fatal("PMM: double free page %x\n", addr); return; }
 	clr_bit(idx);
 	free_pages++;
 }

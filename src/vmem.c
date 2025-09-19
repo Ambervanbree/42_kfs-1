@@ -25,7 +25,7 @@ void *vmalloc(size_t size)
 {
 	if (size == 0) return 0;
 	
-	// Align to 8 bytes
+    // Align to 8 bytes
 	if (size & 7) size = (size + 7) & ~7u;
 	
 	// Find free block or expand virtual region
@@ -55,9 +55,12 @@ void *vmalloc(size_t size)
 	uint32_t needed_pages = (size + sizeof(vmem_block_t) + PAGE_SIZE - 1) / PAGE_SIZE;
 	uint32_t new_vmem_end = vmem_current + needed_pages * PAGE_SIZE;
 	
-	// Map new pages
+    // Map new pages
 	for (uint32_t va = vmem_current; va < new_vmem_end; va += PAGE_SIZE) {
-		void *phys = pmm_alloc_page();
+        void *phys = pmm_alloc_page();
+        if (!phys) {
+            kpanic_fatal("vmalloc: failed to allocate physical page\n");
+        }
 		if (vmm_map_page(va, (uint32_t)phys, PAGE_WRITE) != 0) {
 			kpanic_fatal("vmalloc: failed to map page\n");
 		}
@@ -86,16 +89,16 @@ void vfree(void *ptr)
 	vmem_block_t *blk = (vmem_block_t*)((uint8_t*)ptr - sizeof(vmem_block_t));
 	
 	// Check for double free
-	if (blk->magic == VMEM_MAGIC_FREED) {
-		kprintf("ERROR: Double free detected at 0x%x (vfree)\n", (uint32_t)ptr);
-		return; // Don't panic, just log and continue
-	}
+    if (blk->magic == VMEM_MAGIC_FREED) {
+        kpanic_fatal("vfree: double free detected at 0x%x\n", (uint32_t)ptr);
+        return;
+    }
 	
 	// Check for invalid magic number
-	if (blk->magic != VMEM_MAGIC_ALLOCATED) {
-		kprintf("ERROR: Invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
-		return; // Don't panic, just log and continue
-	}
+    if (blk->magic != VMEM_MAGIC_ALLOCATED) {
+        kpanic_fatal("vfree: invalid memory block at 0x%x (magic: 0x%x)\n", (uint32_t)ptr, blk->magic);
+        return;
+    }
 	
 	// Mark as freed
 	blk->free = 1;
@@ -123,9 +126,9 @@ static int is_valid_allocated_block(vmem_block_t *blk)
 		return 0; // Block is outside virtual memory region
 	}
 	
-	// Check if block is properly aligned (should be page-aligned)
-	if (block_addr & (PAGE_SIZE - 1)) {
-		return 0; // Block is not properly aligned
+	// Check if block header alignment is at least 8 bytes (allocator guarantees 8-byte alignment)
+	if (block_addr & 7) {
+		return 0; // Block header is not 8-byte aligned
 	}
 	
 	// Check if block is linked in the allocation list
@@ -147,6 +150,7 @@ size_t vsize(void *ptr)
 	// Check if pointer is within virtual memory region
 	uint32_t ptr_addr = (uint32_t)ptr;
 	if (ptr_addr < VMEM_START || ptr_addr >= vmem_current) {
+		kprintf("[ERROR] vsize: invalid pointer 0x%x (outside vmalloc region)\n", ptr_addr);
 		return 0; // Pointer is outside virtual memory region
 	}
 	
@@ -154,11 +158,13 @@ size_t vsize(void *ptr)
 	
 	// Check if block is still allocated
 	if (blk->magic != VMEM_MAGIC_ALLOCATED) {
+		kprintf("[ERROR] vsize: pointer 0x%x refers to non-allocated block (magic=0x%x)\n", ptr_addr, blk->magic);
 		return 0; // Block is freed or invalid
 	}
 	
 	// Additional validation: check if block is properly allocated
 	if (!is_valid_allocated_block(blk)) {
+		kprintf("[ERROR] vsize: pointer 0x%x fails allocation validation\n", ptr_addr);
 		return 0; // Block is not properly allocated
 	}
 	

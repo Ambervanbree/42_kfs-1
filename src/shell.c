@@ -7,7 +7,6 @@
 #include "paging.h"
 #include "vmem.h"
 #include "user_mem.h"
-#include "process.h"
 #include "panic.h"
 
 #ifndef NULL
@@ -23,7 +22,7 @@ static uint32_t boot_time = 0;
 void cmd_version(int argc, char **argv);
 void cmd_shutdown(int argc, char **argv);
 void cmd_meminfo(int argc, char **argv);
-void cmd_kalloc(int argc, char **argv);
+void cmd_kmalloc(int argc, char **argv);
 void cmd_kfree(int argc, char **argv);
 void cmd_ksize(int argc, char **argv);
 void cmd_vget(int argc, char **argv);
@@ -32,7 +31,7 @@ void cmd_vmalloc(int argc, char **argv);
 void cmd_vfree(int argc, char **argv);
 void cmd_vsize(int argc, char **argv);
 void cmd_vbrk(int argc, char **argv);
-void cmd_ualloc(int argc, char **argv);
+void cmd_umalloc(int argc, char **argv);
 void cmd_ufree(int argc, char **argv);
 void cmd_usize(int argc, char **argv);
 void cmd_ps(int argc, char **argv);
@@ -45,19 +44,25 @@ void cmd_page_ops(int argc, char **argv);
 void cmd_alloc_functions(int argc, char **argv);
 void cmd_virtual_physical(int argc, char **argv);
 void cmd_panic_test(int argc, char **argv);
+void cmd_ktest(int argc, char **argv);
+void cmd_kwrite(int argc, char **argv);
+void cmd_kread(int argc, char **argv);
+void cmd_write(int argc, char **argv);
+void cmd_read(int argc, char **argv);
+void cmd_rotest(int argc, char **argv);
 
 // Command table
 static struct shell_command commands[] = {
     {"help", "Display this help message", cmd_help},
-    // {"clear", "Clear the screen", cmd_clear},
-    // {"echo", "Echo arguments to screen", cmd_echo},
-    // {"reboot", "Restart the system", cmd_reboot},
-    // {"halt", "Stop CPU (requires manual restart)", cmd_halt},
-    // {"gdt", "Display GDT information", cmd_gdt_info},
-    // {"version", "Display kernel version", cmd_version},
-    // {"shutdown", "Shutdown system gracefully", cmd_shutdown},
+    {"clear", "Clear the screen", cmd_clear},
+    {"echo", "Echo arguments to screen", cmd_echo},
+    {"reboot", "Restart the system", cmd_reboot},
+    {"halt", "Stop CPU (requires manual restart)", cmd_halt},
+    {"gdt", "Display GDT information", cmd_gdt_info},
+    {"version", "Display kernel version", cmd_version},
+    {"shutdown", "Shutdown system gracefully", cmd_shutdown},
     {"meminfo", "Show memory stats", cmd_meminfo},
-    {"kalloc", "Allocate kernel memory: kalloc <bytes>", cmd_kalloc},
+    {"kmalloc", "Allocate kernel memory: kmalloc <bytes>", cmd_kmalloc},
     {"kfree", "Free kernel memory: kfree <addr>", cmd_kfree},
     {"ksize", "Get allocated block size: ksize <addr>", cmd_ksize},
     {"kbrk", "Physical memory break: kbrk [new_addr]", cmd_kbrk},
@@ -66,17 +71,20 @@ static struct shell_command commands[] = {
     {"vsize", "Get virtual block size: vsize <addr>", cmd_vsize},
     {"vbrk", "Virtual memory break: vbrk [new_addr]", cmd_vbrk},
     {"vget", "Show mapping of a virtual addr: vget <virt>", cmd_vget},
-    {"ualloc", "Allocate user memory: ualloc <bytes>", cmd_ualloc},
+    {"umallocc", "Allocate user memory: umalloc <bytes>", cmd_umalloc},
     {"ufree", "Free user memory: ufree <addr>", cmd_ufree},
     {"usize", "Get user block size: usize <addr>", cmd_usize},
-    // {"ps", "List processes", cmd_ps},
-    // {"fork", "Create new process: fork <name>", cmd_fork},
-    // {"kill", "Kill process: kill <pid>", cmd_kill},
     {"paging", "Test memory paging system", cmd_paging},
     {"memrights", "Test memory rights and protection", cmd_memory_rights},
     {"memspaces", "Test kernel and user space separation", cmd_mem_spaces},
     {"pageops", "Test page creation and management", cmd_page_ops},
     {"allocfuncs", "Test allocation functions (kmalloc, kfree, ksize)", cmd_alloc_functions},
+    {"ktest", "Allocate, write, verify, free: ktest <bytes> <value>", cmd_ktest},
+    {"kwrite", "Write int to kmalloc addr: kwrite <addr> <value>", cmd_kwrite},
+    {"kread", "Read int from addr: kread <addr>", cmd_kread},
+    {"write", "Write int to any allocator addr: write <addr> <value>", cmd_write},
+    {"read", "Read int from any allocator addr: read <addr>", cmd_read},
+    {"rotest", "Test read-only page protection", cmd_rotest},
     {"virmem", "Test virtual and physical memory functions", cmd_virtual_physical},
     {"panictest", "Test kernel panic handling", cmd_panic_test},
     {NULL, NULL, NULL} // Sentinel
@@ -187,10 +195,46 @@ void cmd_help(int argc, char **argv)
     (void)argc; // Suppress unused parameter warning
     (void)argv;
     
-    kprintf("Available commands:\n");
-    for (int i = 0; commands[i].name != NULL; i++) {
-        kprintf("  %-10s - %s\n", commands[i].name, commands[i].description);
-    }
+    kprintf("Available commands:\n\n");
+    
+    // Memory management commands
+    kprintf("Memory Management:\n");
+    kprintf("  meminfo     - Show memory stats\n");
+    kprintf("  kbrk        - Physical memory break: kbrk [new_addr]\n");
+    kprintf("  vbrk        - Virtual memory break: vbrk [new_addr]\n");
+    kprintf("  vget        - Show mapping of a virtual addr: vget <virt>\n\n");
+    
+    // Kernel heap commands
+    kprintf("Kernel Heap (kmalloc):\n");
+    kprintf("  kmalloc     - Allocate kernel memory: kmalloc <bytes>\n");
+    kprintf("  kfree       - Free kernel memory: kfree <addr>\n");
+    kprintf("  ksize       - Get allocated block size: ksize <addr>\n");
+    kprintf("  ktest       - Allocate, write, verify, free: ktest <bytes> <value>\n\n");
+    
+    // Virtual memory commands
+    kprintf("Virtual Memory (vmalloc):\n");
+    kprintf("  vmalloc     - Allocate virtual memory: vmalloc <bytes>\n");
+    kprintf("  vfree       - Free virtual memory: vfree <addr>\n");
+    kprintf("  vsize       - Get virtual block size: vsize <addr>\n\n");
+    
+    // User memory commands
+    kprintf("User Memory (umalloc):\n");
+    kprintf("  umalloc      - Allocate user memory: umalloc <bytes>\n");
+    kprintf("  ufree       - Free user memory: ufree <addr>\n");
+    kprintf("  usize       - Get user block size: usize <addr>\n\n");
+    
+    // Test commands
+    kprintf("Memory Tests:\n");
+    kprintf("  write       - Write int to any allocator addr: write <addr> <value>\n");
+    kprintf("  read        - Read int from any allocator addr: read <addr>\n");
+    kprintf("  paging      - Test memory paging system\n");
+    kprintf("  memrights   - Test memory rights and protection\n");
+    kprintf("  memspaces   - Test kernel and user space separation\n");
+    kprintf("  pageops     - Test page creation and management\n");
+    kprintf("  allocfuncs  - Test allocation functions (kmalloc, kfree, ksize)\n");
+    kprintf("  rotest      - Test read-only page protection\n");
+    kprintf("  virmem      - Test virtual and physical memory functions\n");
+    kprintf("  panictest   - Test kernel panic handling\n");
 }
 
 void cmd_clear(int argc, char **argv)
@@ -309,8 +353,6 @@ void cmd_version(int argc, char **argv)
     kprintf("Features: GDT, Interrupts, Keyboard, VGA Text Mode, Shell\n");
 }
 
-
-
 void cmd_shutdown(int argc, char **argv)
 {
     (void)argc;
@@ -385,12 +427,12 @@ void cmd_meminfo(int argc, char **argv)
     kprintf("PMM total pages: %d, free pages: %d\n", (int)pmm_total_pages(), (int)pmm_free_pages());
 }
 
-void cmd_kalloc(int argc, char **argv)
+void cmd_kmalloc(int argc, char **argv)
 {
-    if (argc < 2) { kprintf("Usage: kalloc <bytes>\n"); return; }
+    if (argc < 2) { kprintf("Usage: kmalloc <bytes>\n"); return; }
     uint32_t n = parse_hex_or_dec(argv[1]);
     void *p = kmalloc(n);
-    kprintf("kalloc(%d) -> %x\n", (int)n, (uint32_t)p);
+    kprintf("kmalloc(%d) -> %x\n", (int)n, (uint32_t)p);
 }
 
 void cmd_kfree(int argc, char **argv)
@@ -485,12 +527,12 @@ void cmd_vget(int argc, char **argv)
 }
 
 // User space memory commands
-void cmd_ualloc(int argc, char **argv)
+void cmd_umalloc(int argc, char **argv)
 {
-    if (argc < 2) { kprintf("Usage: ualloc <bytes>\n"); return; }
+    if (argc < 2) { kprintf("Usage: umalloc <bytes>\n"); return; }
     uint32_t n = parse_hex_or_dec(argv[1]);
     void *p = umalloc(n);
-    kprintf("ualloc(%d) -> %x\n", (int)n, (uint32_t)p);
+    kprintf("umalloc(%d) -> %x\n", (int)n, (uint32_t)p);
 }
 
 void cmd_ufree(int argc, char **argv)
@@ -509,162 +551,6 @@ void cmd_usize(int argc, char **argv)
     kprintf("usize(%x) -> %d\n", a, (int)s);
 }
 
-// Process management commands
-void cmd_ps(int argc, char **argv)
-{
-    (void)argc; (void)argv;
-    process_list();
-}
-
-void cmd_fork(int argc, char **argv)
-{
-    if (argc < 2) { kprintf("Usage: fork <name>\n"); return; }
-    process_t *proc = process_create(argv[1]);
-    if (proc) {
-        kprintf("Created process %d: %s\n", proc->pid, proc->name);
-    } else {
-        kprintf("Failed to create process\n");
-    }
-}
-
-void cmd_kill(int argc, char **argv)
-{
-    if (argc < 2) { kprintf("Usage: kill <pid>\n"); return; }
-    uint32_t pid = parse_hex_or_dec(argv[1]);
-    process_t *proc = process_find_by_pid(pid);
-    if (proc) {
-        process_destroy(proc);
-        kprintf("Killed process %d\n", pid);
-    } else {
-        kprintf("Process %d not found\n", pid);
-    }
-}
-
-// ===== MEMORY SYSTEM TESTING COMMANDS =====
-
-void cmd_paging(int argc, char **argv)
-{
-    kprintf("Testing memory paging system...\n\n");
-    
-    // Test 1: Check if paging is enabled
-    kprintf("1. Paging Status:\n");
-    kprintf("   Paging is ENABLED in your kernel\n");
-    kprintf("   Page size: %d bytes (4KB)\n", PAGE_SIZE);
-    kprintf("   Page directory: 1024 entries\n");
-    kprintf("   Page tables: 3 tables (12MB identity mapped)\n\n");
-    
-    // Test 2: Show memory info
-    kprintf("2. Memory Information:\n");
-    cmd_meminfo(argc, argv);
-    kprintf("\n");
-    
-    // Test 3: Test page mapping
-    kprintf("3. Page Mapping Test:\n");
-    kprintf("   Testing virtual to physical mapping...\n");
-    cmd_vget(argc, (char*[]){"vget", "0x1000000", NULL});
-    kprintf("\n");
-}
-
-void cmd_memory_rights(int argc __attribute__((unused)), char **argv __attribute__((unused)))
-{
-    // Test 1: Show page flags
-    // kprintf("1. Memory Rights Flags:\n");
-    // kprintf("   PAGE_PRESENT: 0x%x (Page exists in memory)\n", PAGE_PRESENT);
-    // kprintf("   PAGE_WRITE:   0x%x (Page is writable)\n", PAGE_WRITE);
-    // kprintf("   PAGE_USER:    0x%x (Page accessible by user mode)\n", PAGE_USER);
-    // kprintf("\n");
-    
-    // Test 2: Test different memory allocations
-    kprintf("2. Memory Allocation with Different Rights:\n");
-    
-    // Kernel memory (no PAGE_USER)
-    void *kernel_mem = kmalloc(100);
-    kprintf("   Kernel memory (0x%x): PAGE_WRITE only\n", (uint32_t)kernel_mem);
-    
-    // User memory (with PAGE_USER)
-    void *user_mem = umalloc(100);
-    kprintf("   User memory (0x%x): PAGE_WRITE | PAGE_USER\n", (uint32_t)user_mem);
-    
-    // Virtual memory (no PAGE_USER)
-    void *virt_mem = vmalloc(4096);
-    kprintf("   Virtual memory (0x%x): PAGE_WRITE only\n", (uint32_t)virt_mem);
-    kprintf("\n");
-    
-    // Test 3: Memory space validation
-    // kprintf("3. Memory Space Validation:\n");
-    // kprintf("   User memory (0x%x): ", (uint32_t)user_mem);
-    // if ((uint32_t)user_mem >= 0x08000000 && (uint32_t)user_mem <= 0xBFFFFFFF) {
-    //     kprintf("USER SPACE \n");
-    // } else {
-    //     kprintf("NOT USER SPACE \n");
-    // }
-    
-    // kprintf("   Kernel memory (0x%x): ", (uint32_t)kernel_mem);
-    // if ((uint32_t)kernel_mem >= 0x01000000 && (uint32_t)kernel_mem < 0x00C00000) {
-    //     kprintf("KERNEL HEAP \n");
-    // } else {
-    //     kprintf("NOT KERNEL HEAP \n");
-    // }
-    // kprintf("\n");
-    
-    // Test 4: REAL FUNCTIONAL TESTS
-    kprintf("4. Functional Memory Rights Tests:\n");
-    
-    // Test 4.1: Test memory allocation success
-    kprintf("   4.1. Testing memory allocation success...\n");
-    if (kernel_mem != NULL) {
-        kprintf("   kmalloc(100) succeeded\n");
-    } else {
-        kprintf("   kmalloc(100) failed\n");
-    }
-    
-    if (user_mem != NULL) {
-        kprintf("   umalloc(100) succeeded\n");
-    } else {
-        kprintf("   umalloc(100) failed\n");
-    }
-    
-    if (virt_mem != NULL) {
-        kprintf("   vmalloc(4096) succeeded\n");
-    } else {
-        kprintf("   vmalloc(4096) failed\n");
-    }
-    
-    // Test 4.2: Test memory write access
-    kprintf("   4.2. Testing memory write access...\n");
-    if (kernel_mem != NULL) {
-        uint32_t *k_ptr = (uint32_t*)kernel_mem;
-        *k_ptr = 0x12345678;
-        if (*k_ptr == 0x12345678) {
-            kprintf("   Kernel memory write access works\n");
-        } else {
-            kprintf("   Kernel memory write access failed\n");
-        }
-    }
-    
-    if (user_mem != NULL) {
-        uint32_t *u_ptr = (uint32_t*)user_mem;
-        *u_ptr = 0x87654321;
-        if (*u_ptr == 0x87654321) {
-            kprintf("   User memory write access works\n");
-        } else {
-            kprintf("   User memory write access failed\n");
-        }
-        
-    }
-    
-    if (virt_mem != NULL) {
-        uint32_t *v_ptr = (uint32_t*)virt_mem;
-        *v_ptr = 0xDEADBEEF;
-        if (*v_ptr == 0xDEADBEEF) {
-            kprintf("   Virtual memory write access works\n");
-        } else {
-            kprintf("   Virtual memory write access failed\n");
-        }
-    }
-
-
-}
 
 void cmd_mem_spaces(int argc __attribute__((unused)), char **argv __attribute__((unused)))
 {
@@ -678,9 +564,7 @@ void cmd_mem_spaces(int argc __attribute__((unused)), char **argv __attribute__(
     
     // Test 2: Test user space allocation
     void *user_mem1 = umalloc(1000);
-    kprintf("   ualloc(1000) = 0x%x (User space)\n", (uint32_t)user_mem1);
-
-    
+    kprintf("   umalloc(1000) = 0x%x (User space)\n", (uint32_t)user_mem1);
     // Test 3: Test kernel space allocation
     void *kernel_mem1 = kmalloc(1000);
     kprintf("   kmalloc(1000) = 0x%x (Kernel heap)\n", (uint32_t)kernel_mem1);
@@ -985,4 +869,212 @@ void cmd_panic_test(int argc __attribute__((unused)), char **argv __attribute__(
 
     void *huge_alloc = kmalloc(50 * 1024 * 1024); 
     (void)huge_alloc; // This will call kpanic_fatal("PMM out of memory")
+}
+
+// Simple end-to-end kernel heap test: allocate, write, verify, free
+void cmd_ktest(int argc, char **argv)
+{
+    if (argc < 3) {
+        kprintf("Usage: ktest <bytes> <value>\n");
+        return;
+    }
+    uint32_t nbytes = parse_hex_or_dec(argv[1]);
+    uint32_t value = parse_hex_or_dec(argv[2]);
+
+    void *ptr = kmalloc(nbytes);
+    if (!ptr) {
+        kprintf("ktest: kmalloc(%d) failed\n", (int)nbytes);
+        return;
+    }
+    kprintf("ktest: kmalloc(%d) -> 0x%x\n", (int)nbytes, (uint32_t)ptr);
+
+    // Write the value across the buffer as 32-bit words
+    uint32_t *w = (uint32_t*)ptr;
+    size_t words = nbytes / sizeof(uint32_t);
+    for (size_t i = 0; i < words; i++) {
+        w[i] = value;
+    }
+    // If trailing bytes exist, write them too byte-wise
+    uint8_t *b = (uint8_t*)ptr;
+    for (size_t i = words * sizeof(uint32_t); i < nbytes; i++) {
+        b[i] = (uint8_t)(value & 0xFF);
+    }
+
+    // Print what we wrote (decimal) and read back to confirm
+    kprintf("ktest: wrote value %d to %d bytes\n", (int)value, (int)nbytes);
+    if (nbytes >= sizeof(uint32_t)) {
+        kprintf("ktest: read back first int = %d\n", (int)w[0]);
+        if (words > 1) {
+            kprintf("ktest: read back last  int = %d\n", (int)w[words - 1]);
+        }
+    } else {
+        kprintf("ktest: buffer smaller than 4 bytes, first byte = %d\n", (int)b[0]);
+    }
+
+    // Verify
+    size_t errors = 0;
+    for (size_t i = 0; i < words; i++) {
+        if (w[i] != value) { errors++; break; }
+    }
+    for (size_t i = words * sizeof(uint32_t); i < nbytes && errors == 0; i++) {
+        if (b[i] != (uint8_t)(value & 0xFF)) { errors++; break; }
+    }
+
+    size_t got = ksize(ptr);
+    kprintf("ktest: ksize(0x%x) -> %d\n", (uint32_t)ptr, (int)got);
+    if (errors == 0) {
+        kprintf("ktest: verify OK\n");
+    } else {
+        kprintf("ktest: verify FAILED\n");
+    }
+
+    kfree(ptr);
+    kprintf("ktest: kfree(0x%x)\n", (uint32_t)ptr);
+}
+
+// Generic write command that works with any allocator
+void cmd_write(int argc, char **argv)
+{
+    if (argc < 3) {
+        kprintf("Usage: write <addr> <value>\n");
+        return;
+    }
+    uint32_t addr = parse_hex_or_dec(argv[1]);
+    int val = (int)parse_hex_or_dec(argv[2]);
+
+    // Reject values outside 32-bit signed range
+    if ((uint32_t)val > 0x7FFFFFFF) {
+        kprintf("write: value too big for int: %u\n", (uint32_t)val);
+        return;
+    }
+
+    // Check alignment
+    if ((addr & 3) != 0) {
+        kprintf("write: address 0x%x is not 4-byte aligned\n", addr);
+        return;
+    }
+
+    int *p = (int*)addr;
+    *p = val;
+    kprintf("write: *(int*)0x%x = %d\n", addr, val);
+}
+
+// Generic read command that works with any allocator
+void cmd_read(int argc, char **argv)
+{
+    if (argc < 2) {
+        kprintf("Usage: read <addr>\n");
+        return;
+    }
+    uint32_t addr = parse_hex_or_dec(argv[1]);
+
+    // Check alignment
+    if ((addr & 3) != 0) {
+        kprintf("read: address 0x%x is not 4-byte aligned\n", addr);
+        return;
+    }
+
+    int *p = (int*)addr;
+    kprintf("read: *(int*)0x%x = %d\n", addr, *p);
+}
+
+// Write an int value to a kernel heap address (validate pointer and value)
+void cmd_kwrite(int argc, char **argv)
+{
+    if (argc < 3) {
+        kprintf("Usage: kwrite <addr> <value>\n");
+        return;
+    }
+    uint32_t addr = parse_hex_or_dec(argv[1]);
+    int val = (int)parse_hex_or_dec(argv[2]);
+
+    // Reject values outside 32-bit signed range (demonstrates big value failure)
+    // parse_hex_or_dec returns uint32_t, so check upper half-bit
+    if ((uint32_t)val > 0x7FFFFFFF) {
+        kprintf("kwrite: value too big for int: d\n", (uint32_t)val);
+        return;
+    }
+
+    // Validate that addr looks like a kmalloc pointer: in heap region and allocated
+    size_t sz = ksize((void*)addr);
+    if (sz == 0) {
+        kprintf("kwrite: invalid or unallocated address 0x%x\n", addr);
+        return;
+    }
+    if ((addr & 3) != 0) {
+        kprintf("kwrite: address 0x%x is not 4-byte aligned\n", addr);
+        return;
+    }
+
+    int *p = (int*)addr;
+    *p = val;
+    kprintf("kwrite: *(int*)0x%x = %d\n", addr, val);
+}
+
+// Read an int value from an address and print decimal
+void cmd_kread(int argc, char **argv)
+{
+    if (argc < 2) {
+        kprintf("Usage: kread <addr>\n");
+        return;
+    }
+    uint32_t addr = parse_hex_or_dec(argv[1]);
+    size_t sz = ksize((void*)addr);
+    if (sz == 0) {
+        kprintf("kread: invalid or unallocated address 0x%x\n", addr);
+        return;
+    }
+    if ((addr & 3) != 0) {
+        kprintf("kread: address 0x%x is not 4-byte aligned\n", addr);
+        return;
+    }
+    int *p = (int*)addr;
+    kprintf("kread: *(int*)0x%x = %d\n", addr, *p);
+}
+
+// Test read-only page protection by mapping a page as read-only and trying to write
+void cmd_rotest(int argc, char **argv)
+{
+    (void)argc; (void)argv;
+    
+    kprintf("Testing read-only page protection...\n");
+    
+    // Allocate a physical page
+    void *phys_page = pmm_alloc_page();
+    if (!phys_page) {
+        kprintf("rotest: failed to allocate physical page\n");
+        return;
+    }
+    kprintf("rotest: allocated physical page at 0x%x\n", (uint32_t)phys_page);
+    
+    // Map it as read-only (PAGE_PRESENT only, no PAGE_WRITE)
+    uint32_t virt_addr = 0x50000000;  // Use a high virtual address
+    int result = vmm_map_page(virt_addr, (uint32_t)phys_page, PAGE_PRESENT);
+    if (result != 0) {
+        kprintf("rotest: failed to map read-only page\n");
+        pmm_free_page(phys_page);
+        return;
+    }
+    kprintf("rotest: mapped read-only page at virtual 0x%x\n", virt_addr);
+    
+    // Try to read from it (should work)
+    uint32_t *ptr = (uint32_t*)virt_addr;
+    uint32_t original_value = *ptr;
+    kprintf("rotest: read from page: 0x%x\n", original_value);
+    
+    // Try to write to it (should trigger page fault)
+    kprintf("rotest: attempting to write to read-only page...\n");
+    kprintf("rotest: WARNING - this may cause a page fault!\n");
+    
+    // This write should trigger a page fault
+    *ptr = 0xDEADBEEF;
+    
+    // If we get here, the write succeeded (protection not working)
+    kprintf("rotest: write succeeded - protection not working!\n");
+    kprintf("rotest: new value: 0x%x\n", *ptr);
+    
+    // Clean up
+    vmm_unmap_page(virt_addr);
+    pmm_free_page(phys_page);
+    kprintf("rotest: cleaned up\n");
 }
