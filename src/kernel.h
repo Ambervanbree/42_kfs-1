@@ -39,17 +39,17 @@ struct multiboot_info {
 #define USER_ZONE_START   0x40000000
 #define USER_ZONE_END     0xFFFFFFFF
 
-// Kernel zone allocator regions
-#define KHEAP_START       0x04000000  // kmalloc: 64MB (Physical memory
-#define KHEAP_END         0x07FFFFFF
-#define KVMEM_START       0x02000000  // Kernel virtual memory: 32MB
-#define KVMEM_END         0x03FFFFFF
-#define KERNEL_DATA_START 0x08000000  // Kernel data/structures: 896MB
+// Kernel zone allocator regions (fitted for 10MB total memory)
+#define KHEAP_START       0x00200000  // kmalloc: 1MB
+#define KHEAP_END         0x002FFFFF
+#define KVMEM_START       0x00300000  // Kernel virtual memory: 1MB
+#define KVMEM_END         0x003FFFFF
+#define KERNEL_DATA_START 0x00400000  // Kernel data/structures: 6MB
 
-// User zone allocator regions
-#define VMEM_START        0x40000000  // vmalloc: 64MB
-#define VMEM_END          0x43FFFFFF
-#define USER_PROCESS_START 0x44000000  // User processes: 3GB
+// User zone allocator regions (fitted for 10MB total memory)
+#define VMEM_START        0x00500000  // vmalloc: 1MB
+#define VMEM_END          0x005FFFFF
+#define USER_PROCESS_START 0x00600000  // User processes: 4MB
 
 void kernel_main(); 
 

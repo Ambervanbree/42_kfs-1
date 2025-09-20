@@ -2,8 +2,8 @@
 section .multiboot
     align 4
     dd 0x1BADB002          ; Magic number that GRUB looks for to identify kernel
-    dd 0x00000003          ; Flags (bit 0: load modules, bit 1: memory info)
-    dd -(0x1BADB002 + 0x00000003) ; Checksum to validate header integrity
+    dd 0x0                 ; Flags (0 = no special requirements)
+    dd -(0x1BADB002 + 0x0) ; Checksum to validate header integrity
 
 ; Main code section - contains all executable instructions
 section .text

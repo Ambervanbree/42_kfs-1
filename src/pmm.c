@@ -3,7 +3,6 @@
 #include "kprintf.h"
 
 #define PMM_START 0x00100000u
-#define PMM_MAX_BYTES (1024u * 1024u * 1024u)  // 1GB maximum
 
 static uint32_t total_pages = 0;
 static uint32_t free_pages = 0;
@@ -27,10 +26,6 @@ void pmm_init(uint32_t mem_size_bytes)
 	}
 	
 	pmm_limit_bytes = mem_size_bytes;
-	total_pages = mem_size_bytes / PAGE_SIZE;
-    if (total_pages == 0) {
-        kpanic_fatal("PMM: no usable memory detected\n");
-    }
     
     // Calculate how much memory is actually available (after PMM_START)
     uint32_t available_memory = mem_size_bytes - PMM_START;
@@ -39,6 +34,9 @@ void pmm_init(uint32_t mem_size_bytes)
     if (available_pages == 0) {
         kpanic_fatal("PMM: no memory available after PMM_START\n");
     }
+    
+    // total_pages should be based on available memory, not total memory
+    total_pages = available_pages;
     
 	free_pages = 0;
 	// Initialize bitmap: mark all as used initially
