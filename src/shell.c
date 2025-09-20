@@ -43,15 +43,10 @@ static struct shell_command commands[] = {
     {"pageops", "Test page creation and management", cmd_page_ops},
     {"allocfuncs", "Test allocation functions (kmalloc, kfree, ksize)", cmd_alloc_functions},
     {"ktest", "Allocate, write, verify, free: ktest <bytes> <value>", cmd_ktest},
-    {"write", "Write int to any allocator addr: write <addr> <value> <zone>", cmd_write},
-    {"read", "Read int from any allocator addr: read <addr> <zone>", cmd_read},
+    {"write", "Write int to any allocator addr: write <addr> <value>", cmd_write},
+    {"read", "Read int from any allocator addr: read <addr>", cmd_read},
     {"rotest", "Test read-only page protection", cmd_rotest},
     {"pftest", "Test page fault handler by accessing invalid memory", cmd_pftest},
-    {"pftest3", "Test page fault with simple unmapped access", cmd_pftest3},
-    {"pftest4", "Test page fault by accessing NULL pointer", cmd_pftest4},
-    {"biostest", "Test BIOS memory access protection", cmd_biostest},
-    {"meminfo", "Display memory information", cmd_meminfo},
-    {"virmem", "Test virtual and physical memory functions", cmd_virtual_physical},
     {"panictest", "Test kernel panic handling", cmd_panic_test},
     {NULL, NULL, NULL} // Sentinel
 };
@@ -163,6 +158,17 @@ void cmd_help(int argc, char **argv)
     
     kprintf("Available commands:\n");
     
+    // System commands
+    // kprintf("System:\n");
+    // kprintf("  help        - Display this help message\n");
+    // kprintf("  clear       - Clear the screen\n");
+    // kprintf("  echo        - Echo arguments to screen\n");
+    // kprintf("  reboot      - Restart the system\n");
+    // kprintf("  halt        - Stop CPU (requires manual restart)\n");
+    // kprintf("  shutdown    - Shutdown system gracefully\n");
+    // kprintf("  version     - Display kernel version\n");
+    // kprintf("  gdt         - Display GDT information\n\n");
+    
     // Memory management commands
     kprintf("Memory Management:\n");
     kprintf("  meminfo     - Show memory stats\n");
@@ -180,19 +186,16 @@ void cmd_help(int argc, char **argv)
     // Virtual memory commands
     kprintf("Virtual Memory (vmalloc):\n");
     kprintf("  vmalloc vfree vsize\n");
-    
-    // User memory commands
-    kprintf("User Memory (umalloc):\n");
-    kprintf("  umalloc ufree usize\n");
-    
+       
     // Test commands
     kprintf("Memory Tests:\n");
-    kprintf("  write       - Write int to any allocator addr: write <addr> <value>\n");
-    kprintf("  read        - Read int from any allocator addr: read <addr>\n");
+    kprintf("  present     - Map, unmap, then access to trigger not-present fault\n");
     kprintf("  pageops     - Test page creation and management\n");
     kprintf("  allocfuncs  - Test allocation functions (kmalloc, kfree, ksize)\n");
+    kprintf("  write       - Write int to any allocator addr: write <addr> <value>\n");
+    kprintf("  read        - Read int from any allocator addr: read <addr>\n");
     kprintf("  rotest      - Test read-only page protection\n");
-    kprintf("  virmem      - Test virtual and physical memory functions\n");
+    kprintf("  pftest      - Test page fault handler by accessing invalid memory\n");
     kprintf("  panictest   - Test kernel panic handling\n");
 }
 
@@ -387,27 +390,17 @@ void cmd_meminfo(int argc __attribute__((unused)), char **argv __attribute__((un
     // Get PMM information
     uint32_t total_pages = pmm_total_pages();
     uint32_t free_pages = pmm_free_pages();
-    uint32_t used_pages = total_pages - free_pages;
     
     kprintf("Physical Memory Manager (PMM):\n");
     kprintf("  Total pages: %d (%d MB)\n", total_pages, (total_pages * PAGE_SIZE) / (1024 * 1024));
     kprintf("  Free pages: %d (%d MB)\n", free_pages, (free_pages * PAGE_SIZE) / (1024 * 1024));
-    kprintf("  Used pages: %d (%d MB)\n", used_pages, (used_pages * PAGE_SIZE) / (1024 * 1024));
-    kprintf("  Page size: %d bytes\n", PAGE_SIZE);
-    kprintf("  PMM start: 0x%x\n", PMM_START);
     
-    kprintf("\nMemory Zones:\n");
-    kprintf("  Kernel zone: 0x%x - 0x%x (1GB)\n", KERNEL_ZONE_START, KERNEL_ZONE_END);
-    kprintf("  User zone: 0x%x - 0x%x (3GB)\n", USER_ZONE_START, USER_ZONE_END);
-    
+
     kprintf("\nAllocator Regions:\n");
-    kprintf("  kmalloc: 0x%x - 0x%x (64MB) - Physical memory\n", KHEAP_START, KHEAP_END);
-    kprintf("  vmalloc: 0x%x - 0x%x (32MB) - Kernel virtual memory\n", KVMEM_START, KVMEM_END);
-    kprintf("  vmalloc: 0x%x - 0x%x (64MB) - User virtual memory\n", VMEM_START, VMEM_END);
+    kprintf("  kmalloc: %x - %x (64MB) - Physical memory\n", KHEAP_START, KHEAP_END);
+    kprintf("  vmalloc: %x - %x (32MB) - Kernel virtual memory\n", KVMEM_START, KVMEM_END);
+    kprintf("  vmalloc: %x - %x (64MB) - User virtual memory\n", VMEM_START, VMEM_END);
     
-    kprintf("\nProtected Regions:\n");
-    kprintf("  BIOS: 0x00000000 - 0x000FFFFF (1MB)\n");
-    kprintf("  Identity-mapped: 0x00100000 - 0x01FFFFFF (31MB)\n");
 }
 
 void cmd_kmalloc(int argc, char **argv)
@@ -509,8 +502,6 @@ void cmd_vget(int argc, char **argv)
     kprintf("physical: %x  flags: %x\n", phys, flags);
 }
 
-// User space memory commands
-// Removed umalloc commands - using vmalloc for user space
 
 
 void cmd_page_ops(int argc __attribute__((unused)), char **argv __attribute__((unused)))
@@ -923,95 +914,5 @@ void cmd_pftest(int argc, char **argv)
     
     // If we get here, something went wrong
     kprintf("pftest: ERROR - Page fault handler not working!\n");
-}
-
-// Test page fault handler by accessing kernel space (simulating user mode)
-void cmd_pftest2(int argc, char **argv)
-{
-    (void)argc; (void)argv;
-    
-    kprintf("=== Page Fault Handler Test 2 ===\n");
-    kprintf("Testing kernel space access protection...\n\n");
-    
-    // Test 2: Access kernel space (should trigger protection violation)
-    kprintf("Test 2: Accessing kernel space (0x%x+)\n", KERNEL_ZONE_START);
-    kprintf("pftest2: About to access 0x%x (kernel space)...\n", KERNEL_ZONE_START);
-    kprintf("pftest2: This should trigger a protection violation!\n");
-    
-    // This should trigger a page fault with protection violation
-    volatile uint32_t *kernel_space = (volatile uint32_t*)KERNEL_ZONE_START;
-    uint32_t value = *kernel_space;  // This will cause a page fault
-    (void)value;  // Suppress unused variable warning
-    
-    // If we get here, something went wrong
-    kprintf("pftest2: ERROR - Page fault handler not working!\n");
-}
-
-// Simple page fault test - just access unmapped memory
-void cmd_pftest3(int argc, char **argv)
-{
-    (void)argc; (void)argv;
-    
-    kprintf("=== Simple Page Fault Test ===\n");
-    kprintf("pftest3: About to access unmapped memory at 0x99999999\n");
-    kprintf("pftest3: This should trigger a page fault!\n");
-    kprintf("pftest3: If you see this message after the access, the handler isn't working.\n");
-    
-    // This should definitely cause a page fault
-    volatile uint32_t *ptr = (volatile uint32_t*)0x99999999;
-    uint32_t value = *ptr;  // This will cause a page fault
-    (void)value;
-    
-    // If we get here, something is wrong
-    kprintf("pftest3: ERROR - Page fault handler not working!\n");
-    kprintf("pftest3: The access succeeded when it should have failed!\n");
-}
-
-// Test page fault with NULL pointer access
-void cmd_pftest4(int argc, char **argv)
-{
-    (void)argc; (void)argv;
-    
-    kprintf("=== NULL Pointer Page Fault Test ===\n");
-    kprintf("pftest4: About to access NULL pointer (0x00000000)\n");
-    kprintf("pftest4: This should trigger a page fault!\n");
-    
-    // This should cause a page fault (accessing address 0)
-    volatile uint32_t *ptr = (volatile uint32_t*)0x00000000;
-    uint32_t value = *ptr;  // This will cause a page fault
-    (void)value;
-    
-    // If we get here, something is wrong
-    kprintf("pftest4: ERROR - Page fault handler not working!\n");
-}
-
-// Test BIOS memory access protection
-void cmd_biostest(int argc, char **argv)
-{
-    (void)argc; (void)argv;
-    
-    kprintf("=== BIOS Memory Access Protection Test ===\n");
-    kprintf("biostest: Testing access to BIOS memory regions...\n\n");
-    
-    kprintf("biostest: BIOS memory region: 0x00000000 - 0x000FFFFF (1MB)\n");
-    kprintf("biostest: This region contains:\n");
-    kprintf("biostest: - Interrupt Vector Table (0x0000-0x03FF)\n");
-    kprintf("biostest: - BIOS Data Area (0x0400-0x04FF)\n");
-    kprintf("biostest: - BIOS Code (0xF0000-0xFFFFF)\n");
-    kprintf("biostest: - Video Memory (0xA0000-0xBFFFF)\n\n");
-    
-    kprintf("biostest: This should trigger a page fault!\n\n");
-    
-    // Test different BIOS addresses
-    //volatile uint32_t *bios_ivt = (volatile uint32_t*)0x00000000;  // Interrupt Vector Table
-    volatile uint32_t *bios_data = (volatile uint32_t*)0x00000400; // BIOS Data Area
-    //volatile uint32_t *bios_code = (volatile uint32_t*)0x000F0000; // BIOS Code
-    
-    kprintf("biostest: Accessing Interrupt Vector Table (0x00000000)...\n");
-    uint32_t value = *bios_data;  // This should cause page fault
-    (void)value;
-    
-    kprintf("biostest: ERROR - Page fault handler not working!\n");
-    kprintf("biostest: BIOS access should have been blocked!\n");
 }
 

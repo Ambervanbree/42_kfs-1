@@ -33,23 +33,22 @@ struct multiboot_info {
 #define ARCHITECTURE "i386 (x86)"
 #define KERNEL_NAME "KrnL"
 
-// Memory zone boundaries (Following specification: Kernel first, User second)
+// Memory zone boundaries (Fitted for 10MB total memory: 0x00000000 - 0x00A00000)
 #define KERNEL_ZONE_START 0x00000000
-#define KERNEL_ZONE_END   0x3FFFFFFF
-#define USER_ZONE_START   0x40000000
-#define USER_ZONE_END     0xFFFFFFFF
+#define KERNEL_ZONE_END   0x005FFFFF  // Kernel zone: 0x00000000 - 0x005FFFFF (6MB)
+#define USER_ZONE_START   0x00600000  // User zone: 0x00600000 - 0x00A00000 (4MB)
+#define USER_ZONE_END     0x00A00000
 
-// Kernel zone allocator regions (fitted for 10MB total memory)
+// Kernel zone allocator regions (fitted for 10MB total memory: 0x00000000 - 0x00A00000)
 #define KHEAP_START       0x00200000  // kmalloc: 1MB
 #define KHEAP_END         0x002FFFFF
-#define KVMEM_START       0x00300000  // Kernel virtual memory: 1MB
-#define KVMEM_END         0x003FFFFF
-#define KERNEL_DATA_START 0x00400000  // Kernel data/structures: 6MB
+#define KVMEM_START       0x00300000  // Kernel virtual memory: 3MB (expanded)
+#define KVMEM_END         0x005FFFFF
 
 // User zone allocator regions (fitted for 10MB total memory)
-#define VMEM_START        0x00500000  // vmalloc: 1MB
-#define VMEM_END          0x005FFFFF
-#define USER_PROCESS_START 0x00600000  // User processes: 4MB
+#define VMEM_START        0x00600000  // vmalloc: 1MB
+#define VMEM_END          0x006FFFFF
+#define USER_PROCESS_START 0x00700000  // User processes: 3MB (up to 0x00A00000)
 
 void kernel_main(); 
 

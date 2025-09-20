@@ -348,15 +348,15 @@ PTE.P = whether the actual page frame exists in memory.
 
 
 
-KERNEL ZONE (0x00000000 - 0x3FFFFFFF) - 1GB:
+Memory Layout (10MB = 0x00000000 - 0x00A00000):
 0x00000000 - 0x000FFFFF: BIOS Memory (1MB) ⚠️ PROTECTED
-0x00100000 - 0x00BFFFFF: Identity-mapped (11MB)
-0x00C00000 - 0x01FFFFFF: Reserved/Unused (20MB)
-0x02000000 - 0x03FFFFFF: Kernel vmalloc (32MB) ✅
-0x04000000 - 0x07FFFFFF: kmalloc (64MB) ✅
-0x08000000 - 0x3FFFFFFF: Kernel data/structures (896MB)
+0x00000800 - 0x0000082F: GDT (48 bytes) - Global Descriptor Table
+0x00100000 - 0x00100FFF: Page Directory (4KB) - static in paging.c
+0x00101000 - 0x00103FFF: Page Tables (12KB) - static in paging.c  
+0x00104000 - 0x001047FF: IDT (2KB) - static in keyboard.c
+0x00105000 - 0x001FFFFF: PMM_START + remaining space
+0x00200000 - 0x002FFFFF: Kernel heap (1MB)
+0x00300000 - 0x005FFFFF: Kernel virtual memory (3MB) - expanded
 
-USER ZONE (0x40000000 - 0xFFFFFFFF) - 3GB:
-0x40000000 - 0x43FFFFFF: vmalloc (64MB) ✅
-0x44000000 - 0x47FFFFFF: umalloc (64MB) ✅
-0x48000000 - 0xFFFFFFFF: User processes (3GB)
+0x00600000 - 0x006FFFFF: User vmalloc (1MB)
+0x00700000 - 0x009FFFFF: User processes (3MB)
