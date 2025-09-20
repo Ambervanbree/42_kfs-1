@@ -6,7 +6,6 @@
 #include "kheap.h"
 #include "paging.h"
 #include "vmem.h"
-// Removed user_mem.h - using vmalloc for user space
 #include "panic.h"
 
 #ifndef NULL
@@ -38,10 +37,10 @@ static struct shell_command commands[] = {
     {"vsize", "Get virtual block size: vsize <addr>", cmd_vsize},
     {"vbrk", "Virtual memory break: vbrk [new_addr]", cmd_vbrk},
     {"vget", "Show mapping of a virtual addr: vget <virt>", cmd_vget},
-    // Removed umalloc commands - using vmalloc for user space
     {"present", "Map, unmap, then access to trigger not-present fault", cmd_present},
     {"pageops", "Test page creation and management", cmd_page_ops},
-    {"allocfuncs", "Test allocation functions (kmalloc, kfree, ksize)", cmd_alloc_functions},
+    {"kmalloctest", "Test allocation functions (kmalloc, kfree, ksize)", cmd_kmalloc_test},
+    {"vmalloctest", "Test allocation functions (vmalloc, vfree, vsize)", cmd_vmalloc_test},
     {"ktest", "Allocate, write, verify, free: ktest <bytes> <value>", cmd_ktest},
     {"vtest", "Allocate, write, verify, free: vtest <bytes> <value>", cmd_vtest},
     {"write", "Write int to any allocator addr: write <addr> <value>", cmd_write},
@@ -158,42 +157,30 @@ void cmd_help(int argc, char **argv)
     (void)argc; // Suppress unused parameter warning
     (void)argv;
     
-    kprintf("Available commands:\n");
-    
     // System commands
-    // kprintf("System:\n");
-    // kprintf("  help        - Display this help message\n");
-    // kprintf("  clear       - Clear the screen\n");
-    // kprintf("  echo        - Echo arguments to screen\n");
-    // kprintf("  reboot      - Restart the system\n");
-    // kprintf("  halt        - Stop CPU (requires manual restart)\n");
-    // kprintf("  shutdown    - Shutdown system gracefully\n");
-    // kprintf("  version     - Display kernel version\n");
-    // kprintf("  gdt         - Display GDT information\n\n");
-    
-    // Memory management commands
-    kprintf("Memory Management:\n");
-    kprintf("  meminfo     - Show memory stats\n");
-    kprintf("  kbrk        - Physical memory break: kbrk [new_addr]\n");
-    kprintf("  vbrk        - Virtual memory break: vbrk [new_addr]\n");
-    kprintf("  vget        - Show mapping of a virtual addr: vget <virt>\n\n");
-    
+    kprintf("System commands:\n");
+    kprintf("  help clear echo reboot halt shutdown version gdt\n");
+
     // Kernel heap commands
-    kprintf("Kernel Heap (kmalloc):\n");
+    kprintf("Kernel Heap commands (kmalloc):\n");
     kprintf("  kmalloc     - Allocate kernel memory: kmalloc <bytes>\n");
     kprintf("  kfree       - Free kernel memory: kfree <addr>\n");
     kprintf("  ksize       - Get allocated block size: ksize <addr>\n");
-    kprintf("  ktest       - Allocate, write, verify, free: ktest <bytes> <value>\n\n");
+    kprintf("  ktest       - Allocate, write, verify, free: ktest <bytes> <value>\n");
+    kprintf("  kbrk        - Physical memory break: kbrk [new_addr]\n");
     
     // Virtual memory commands
-    kprintf("Virtual Memory (vmalloc):\n");
-    kprintf("  vmalloc vfree vsize vbrk vget\n");
-       
+    kprintf("Virtual Memory commands (vmalloc):\n");
+    kprintf("  vmalloc vfree vsize vbrk\n");
+    kprintf("  vget        - Show mapping of a virtual addr: vget <virt>\n");
+    
     // Test commands
     kprintf("Memory Tests:\n");
+    kprintf("  meminfo     - Show memory stats\n");
     kprintf("  present     - Map, unmap, then access to trigger not-present fault\n");
     kprintf("  pageops     - Test page creation and management\n");
-    kprintf("  allocfuncs  - Test allocation functions (kmalloc, kfree, ksize)\n");
+    kprintf("  kmalloctest - Test allocation functions (kmalloc, kfree, ksize)\n");
+    kprintf("  vmalloctest - Test allocation functions (vmalloc, vfree, vsize)\n");
     kprintf("  write       - Write int to any allocator addr: write <addr> <value>\n");
     kprintf("  read        - Read int from any allocator addr: read <addr>\n");
     kprintf("  rotest      - Test read-only page protection\n");
@@ -388,7 +375,17 @@ static uint32_t parse_hex_or_dec(const char *s)
 void cmd_meminfo(int argc __attribute__((unused)), char **argv __attribute__((unused)))
 {
     kprintf("=== Memory Information ===\n");
+    cmd_pmminfo(0, NULL);
+
+    kprintf("\nAllocator Regions:\n");
+    kprintf("  kmalloc: %x - %x (64MB) - Physical memory\n", KHEAP_START, KHEAP_END);
+    kprintf("  vmalloc: %x - %x (32MB) - Kernel virtual memory\n", KVMEM_START, KVMEM_END);
+    kprintf("  vmalloc: %x - %x (64MB) - User virtual memory\n", VMEM_START, VMEM_END);
     
+}
+
+void cmd_pmminfo(int argc __attribute__((unused)), char **argv __attribute__((unused)))
+{
     // Get PMM information
     uint32_t total_pages = pmm_total_pages();
     uint32_t free_pages = pmm_free_pages();
@@ -396,13 +393,6 @@ void cmd_meminfo(int argc __attribute__((unused)), char **argv __attribute__((un
     kprintf("Physical Memory Manager (PMM):\n");
     kprintf("  Total pages: %d (%d MB)\n", total_pages, (total_pages * PAGE_SIZE) / (1024 * 1024));
     kprintf("  Free pages: %d (%d MB)\n", free_pages, (free_pages * PAGE_SIZE) / (1024 * 1024));
-    
-
-    kprintf("\nAllocator Regions:\n");
-    kprintf("  kmalloc: %x - %x (64MB) - Physical memory\n", KHEAP_START, KHEAP_END);
-    kprintf("  vmalloc: %x - %x (32MB) - Kernel virtual memory\n", KVMEM_START, KVMEM_END);
-    kprintf("  vmalloc: %x - %x (64MB) - User virtual memory\n", VMEM_START, VMEM_END);
-    
 }
 
 void cmd_kmalloc(int argc, char **argv)
@@ -437,9 +427,13 @@ void cmd_kbrk(int argc, char **argv)
         return;
     }
     uint32_t new_brk = parse_hex_or_dec(argv[1]);
+    if (new_brk == 0) {
+        kprintf("[ERROR] vbrk: invalid address %x\n", new_brk);
+        return;
+    }
     void *result = kbrk((void*)new_brk);
     if (result == (void*)-1) {
-        kprintf("kbrk: invalid address %x\n", new_brk);
+        kprintf("[ERROR] kbrk: invalid address %x\n", new_brk);
     } else {
         kprintf("kbrk: %x\n", (uint32_t)result);
     }
@@ -477,9 +471,13 @@ void cmd_vbrk(int argc, char **argv)
         return;
     }
     uint32_t new_brk = parse_hex_or_dec(argv[1]);
+    if (new_brk == 0) {
+        kprintf("[ERROR] vbrk: address %x not allocatable\n", new_brk);
+        return;
+    }
     void *result = vbrk((void*)new_brk);
     if (result == (void*)-1) {
-        kprintf("vbrk: invalid address %x\n", new_brk);
+        kprintf("[ERROR] vbrk: address %x not allocatable\n", new_brk);
     } else {
         kprintf("vbrk: %x\n", (uint32_t)result);
     }
@@ -580,50 +578,49 @@ void cmd_present(int argc __attribute__((unused)), char **argv __attribute__((un
     volatile uint32_t x = *(volatile uint32_t*)virt; // should fault
     (void)x;
 }
-void cmd_alloc_functions(int argc __attribute__((unused)), char **argv __attribute__((unused)))
-{
-    kprintf("Testing allocation, free, and size functions...\n\n");
+void cmd_kmalloc_test(int argc __attribute__((unused)), char **argv __attribute__((unused)))
+{   
+    // Show initial memory stat
+    cmd_pmminfo(argc, argv);
     
-    // Test 0: Show initial memory stat
-    cmd_meminfo(argc, argv);
-    
-    // Test 1: Kernel allocation functions
+    // Test 1: Pages are equal size after small allocation
     void *kptr1 = kmalloc(100);
-    kprintf("   kmalloc(100) = %x\n", (uint32_t)kptr1);
+    kprintf("\n  kmalloc(100) = %x\n", (uint32_t)kptr1);
     size_t ksize1 = ksize(kptr1);
-    kprintf("   ksize(%x) = %d bytes\n", (uint32_t)kptr1, ksize1);
-    cmd_meminfo(argc, argv);
+    kprintf("  ksize(%x) = %d bytes\n\n", (uint32_t)kptr1, ksize1);
+    cmd_pmminfo(argc, argv);
     kfree(kptr1);
     
-    // Test 2: Virtual memory allocation functions
-    cmd_meminfo(argc, argv);
+    // Test 2: Pages are equal size after big allocation
+    void *large1 = kmalloc(5000);
+    kprintf("\n  kmalloc(5000) = %x\n", (uint32_t)large1);
+    size_t ksize2 = ksize(large1);
+    kprintf("  ksize(%x) = %d bytes\n\n", (uint32_t)large1, ksize2);
+    cmd_pmminfo(argc, argv);
+    kfree(large1);
+}
+
+void cmd_vmalloc_test(int argc __attribute__((unused)), char **argv __attribute__((unused)))
+{   
+    // Show initial memory stat
+    cmd_pmminfo(argc, argv);
+    
+    // Small virtual allocation
     void *vptr1 = vmalloc(200);
-    kprintf("   vmalloc(200) = %x\n", (uint32_t)vptr1);
+    kprintf("\n  vmalloc(200) = %x\n", (uint32_t)vptr1);
     size_t vsize1 = vsize(vptr1);
-    kprintf("   vsize(%x) = %d bytes\n", (uint32_t)vptr1, vsize1);
-    cmd_meminfo(argc, argv);
+    kprintf("  vsize(%x) = %d bytes\n\n", (uint32_t)vptr1, vsize1);
+    cmd_pmminfo(argc, argv);
     vfree(vptr1);
 
     
-    // Test 3: Additional virtual allocation functions
-    cmd_meminfo(argc, argv);
-    void *vptr2 = vmalloc(4096);
-    kprintf("   vmalloc(4096) = %x\n", (uint32_t)vptr2); 
+    // Virtual allocation of multiple pages
+    void *vptr2 = vmalloc(5000);
+    kprintf("\n  vmalloc(5000) = %x\n", (uint32_t)vptr2); 
     size_t vsize2 = vsize(vptr2);
-    kprintf("   vsize(%x) = %d bytes\n", (uint32_t)vptr2, vsize2);
-    cmd_meminfo(argc, argv);
+    kprintf("  vsize(%x) = %d bytes\n\n", (uint32_t)vptr2, vsize2);
+    cmd_pmminfo(argc, argv);
     vfree(vptr2);
-
-    
-    // Test 4: Force new page allocation
-    kprintf(" Force New Page Allocation Test:\n");
-    cmd_meminfo(argc, argv);
-    void *large1 = kmalloc(5000);  // Should allocate new page
-    kprintf("   kmalloc(5000) = %x\n", (uint32_t)large1);
-    kprintf("     Memory State After Large Allocations:\n");
-    cmd_meminfo(argc, argv);
-    kfree(large1);
-
 }
 
 void cmd_virtual_physical(int argc __attribute__((unused)), char **argv __attribute__((unused)))

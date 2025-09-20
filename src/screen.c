@@ -74,7 +74,7 @@ void load_home_screen() {
 
     kprintf("- Architecture: %s\n", ARCHITECTURE);
 
-    kprintf("Boot loader: %s\n", BOOTLOADER);
+    kprintf("- Boot loader: %s\n", BOOTLOADER);
 
     kprintf("- KrnL successfully loaded!\n\n");
     
