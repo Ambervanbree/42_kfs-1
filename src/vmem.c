@@ -152,7 +152,7 @@ size_t vsize(void *ptr)
 	// Check if pointer is within virtual memory region
 	uint32_t ptr_addr = (uint32_t)ptr;
 	if (ptr_addr < VMEM_START || ptr_addr >= vmem_current) {
-		kprintf("[ERROR] vsize: invalid pointer %x (outside vmalloc region)\n", ptr_addr);
+		kprintf("[ERROR] vsize: invalid pointer %x (outside vmalloc allocated region)\n", ptr_addr);
 		return 0; // Pointer is outside virtual memory region
 	}
 	

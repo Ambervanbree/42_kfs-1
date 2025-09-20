@@ -87,6 +87,10 @@ void interrupt_init(void)
     // set up keyboard interrupt handler
     idt_set_gate(IRQ1, (uint32_t)keyboard_handler_asm, 0x08, 0x8E);
     
+    // set up page fault handler (interrupt 14)
+    extern void page_fault_handler_asm(void);
+    idt_set_gate(14, (uint32_t)page_fault_handler_asm, 0x08, 0x8E);
+    
     // load the IDT
     idt_load();
     

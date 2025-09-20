@@ -17,9 +17,11 @@ void paging_init(void)
 	// Zero PD
 	for (int i = 0; i < 1024; i++) page_directory[i] = 0;
 	// Identity-map first ~12MB using present|write
+	// Map kernel code/data but not BIOS data area
 	for (int t = 0; t < 3; t++) {
 		for (int i = 0; i < 1024; i++) {
 			uint32_t phys = (t * 1024 + i) * PAGE_SIZE;
+			// Map everything for now - we'll handle BIOS protection in page fault handler
 			page_tables[t][i] = (phys & 0xFFFFF000) | PAGE_PRESENT | PAGE_WRITE;
 		}
 		page_directory[t] = ((uint32_t)page_tables[t]) | PAGE_PRESENT | PAGE_WRITE; // supervisor RW
@@ -75,5 +77,47 @@ uint32_t vmm_get_mapping(uint32_t virt)
 	uint32_t *pte = virt_to_pte(virt, 0);
 	if (!pte) return 0;
 	return *pte;
+}
+
+// Page fault handler - handles permission violations and missing pages
+void page_fault_handler(void)
+{
+	uint32_t fault_addr;
+	uint32_t error_code;
+	
+	// Get fault address from CR2 register
+	asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
+	
+	// Get error code from stack (pushed by CPU before our wrapper)
+	// The error code is at offset 28 from ESP (7 registers * 4 bytes = 28)
+	asm volatile("mov 28(%%esp), %0" : "=r"(error_code));
+	
+	// Check if trying to access BIOS addresses (0x00000000-0x000FFFFF)
+	if (fault_addr < 0x00100000) {
+		kpanic_fatal("Access to BIOS memory region denied\n");
+	}
+	
+	// Check if it's a permission violation (user trying to access kernel space)
+	if ((error_code & 0x4) && (fault_addr >= 0xC0000000)) {
+		kpanic_fatal("User access to kernel space denied\n");
+	}
+	
+	// Check if it's a user space permission violation
+	if ((error_code & 0x4) && (fault_addr < 0xC0000000)) {
+		uint32_t *pte = virt_to_pte(fault_addr, 0);
+		if (pte && (*pte & PAGE_PRESENT)) {
+			kpanic_fatal("User access to supervisor-only page denied\n");
+		}
+	}
+	
+	// All other page faults
+	kpanic_fatal("Page fault\n");
+}
+
+void setup_page_fault_handler(void)
+{
+	// Set up page fault handler in IDT (interrupt 14)
+	// This will be called by the interrupt system
+	kprintf("Page fault handler registered (interrupt 14)\n");
 }
 

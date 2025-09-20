@@ -8,9 +8,10 @@
 // Very simple user heap allocator similar to kernel heap
 
 typedef struct user_block_header {
-    size_t size;
+    size_t size;           // Requested size (what user asked for)
+    size_t capacity;       // Actual capacity (page-aligned)
     int free;
-    uint32_t magic;  // Magic number for double free detection
+    uint32_t magic;        // Magic number for double free detection
     struct user_block_header *next;
 } user_block_header_t;
 
@@ -59,9 +60,11 @@ static void user_split_block(user_block_header_t *blk, size_t size)
     if (blk->size >= size + sizeof(user_block_header_t) + 16) {
         user_block_header_t *n = (user_block_header_t*)((uint8_t*)blk + sizeof(user_block_header_t) + size);
         n->size = blk->size - size - sizeof(user_block_header_t);
+        n->capacity = n->size;  // For split blocks, capacity equals size
         n->free = 1;
         n->next = blk->next;
         blk->size = size;
+        blk->capacity = size;  // For split blocks, capacity equals size
         blk->next = n;
     }
 }
@@ -82,6 +85,8 @@ void *umalloc(size_t size)
             user_split_block(cur, size);
             cur->free = 0;
             cur->magic = USER_MAGIC_ALLOCATED;
+            // Update capacity to match the split size
+            cur->capacity = cur->size;
             return (uint8_t*)cur + sizeof(user_block_header_t);
         }
         prev = cur;
@@ -91,8 +96,9 @@ void *umalloc(size_t size)
     // No suitable block found - expand user heap
     uint8_t *chunk = (uint8_t*)user_heap_expand(size + sizeof(user_block_header_t));
     user_block_header_t *blk = (user_block_header_t*)chunk;
-    blk->size = (size + sizeof(user_block_header_t) <= PAGE_SIZE) ? 
-                (PAGE_SIZE - sizeof(user_block_header_t)) : (size);
+    blk->size = size;  // Store the requested size
+    blk->capacity = (size + sizeof(user_block_header_t) <= PAGE_SIZE) ? 
+                    (PAGE_SIZE - sizeof(user_block_header_t)) : size;
     blk->free = 0;
     blk->magic = USER_MAGIC_ALLOCATED;
     blk->next = 0;
@@ -129,6 +135,7 @@ void ufree(void *ptr)
         uint8_t *end_cur = (uint8_t*)cur + sizeof(user_block_header_t) + cur->size;
         if (cur->free && cur->next->free && end_cur == (uint8_t*)cur->next) {
             cur->size += sizeof(user_block_header_t) + cur->next->size;
+            cur->capacity = cur->size;  // Update capacity to match new size
             cur->next = cur->next->next;
         } else {
             cur = cur->next;

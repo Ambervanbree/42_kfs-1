@@ -90,5 +90,6 @@ void pic_send_eoi(uint8_t irq);
 
 extern void idt_load(void);
 extern void keyboard_handler_asm(void);
+extern void page_fault_handler_asm(void);
 
 #endif 
