@@ -9,6 +9,8 @@ static uint32_t __attribute__((aligned(4096))) page_tables[3][1024]; // 3 * 4MB 
 static inline void load_cr3(uint32_t phys) { asm volatile("mov %0, %%cr3" : : "r"(phys) : "memory"); }
 static inline uint32_t read_cr0(void) { uint32_t v; asm volatile("mov %%cr0, %0" : "=r"(v)); return v; }
 static inline void write_cr0(uint32_t v) { asm volatile("mov %0, %%cr0" : : "r"(v) : "memory"); }
+static inline void enable_wp(void) { uint32_t cr0 = read_cr0(); cr0 |= (1 << 16); write_cr0(cr0); }
+static inline void disable_wp(void) { uint32_t cr0 = read_cr0(); cr0 &= ~(1 << 16); write_cr0(cr0); }
 
 void paging_init(void)
 {
@@ -29,6 +31,8 @@ void paging_init(void)
 	// Kernel space/user space notion: addresses >= 0xC0000000 can later be kernel
 	// For now, we only identity map low memory.
 	load_cr3((uint32_t)page_directory);
+	// Enable write protection
+	enable_wp();
 	kprintf("Paging structures initialized.\n");
 }
 
