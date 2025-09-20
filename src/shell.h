@@ -63,5 +63,8 @@ void cmd_read(int argc, char **argv);
 void cmd_present(int argc, char **argv);
 void cmd_rotest(int argc, char **argv);
 void cmd_pftest(int argc, char **argv);
+void cmd_pftest2(int argc, char **argv);
+void cmd_pftest3(int argc, char **argv);
+void cmd_vtest(int argc, char **argv);
 void cmd_biostest(int argc, char **argv);
 #endif

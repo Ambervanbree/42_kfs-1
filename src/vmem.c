@@ -5,7 +5,7 @@
 #include "kprintf.h"
 
 // Virtual memory region for vmalloc
-static uint32_t vmem_current = VMEM_START;
+static uint32_t vmem_current = KVMEM_START;
 static uint32_t vmem_size = 0;
 
 typedef struct vmem_block {
@@ -56,7 +56,7 @@ void *vmalloc(size_t size)
 	uint32_t new_vmem_end = vmem_current + needed_pages * PAGE_SIZE;
 	
 	// Check if expansion would exceed vmalloc region
-	if (new_vmem_end > VMEM_END) {
+	if (new_vmem_end > KVMEM_END) {
 		kpanic_fatal("vmalloc: would exceed vmalloc region\n");
 	}
 	
@@ -128,7 +128,7 @@ static int is_valid_allocated_block(vmem_block_t *blk)
 {
 	// Check if block is within virtual memory region
 	uint32_t block_addr = (uint32_t)blk;
-	if (block_addr < VMEM_START || block_addr >= vmem_current) {
+	if (block_addr < KVMEM_START || block_addr >= vmem_current) {
 		return 0; // Block is outside virtual memory region
 	}
 	
@@ -155,7 +155,7 @@ size_t vsize(void *ptr)
 	
 	// Check if pointer is within virtual memory region
 	uint32_t ptr_addr = (uint32_t)ptr;
-	if (ptr_addr < VMEM_START || ptr_addr >= vmem_current) {
+	if (ptr_addr < KVMEM_START || ptr_addr >= vmem_current) {
 		kprintf("[ERROR] vsize: invalid pointer %x (outside vmalloc allocated region)\n", ptr_addr);
 		return 0; // Pointer is outside virtual memory region
 	}
@@ -184,7 +184,7 @@ void *vbrk(void *new_brk)
 	}
 	
 	uint32_t new_addr = (uint32_t)new_brk;
-	if (new_addr < VMEM_START || new_addr < vmem_current) {
+	if (new_addr < KVMEM_START || new_addr < vmem_current) {
 		return (void*)-1; // Invalid break
 	}
 	
