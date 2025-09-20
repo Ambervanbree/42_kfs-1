@@ -50,7 +50,7 @@ uint32_t *virt_to_pte(uint32_t virt, int create)
 		// allocate a new table
 		uint32_t *new_table = (uint32_t*)pmm_alloc_page();
 		for (int i = 0; i < 1024; i++) new_table[i] = 0;
-		page_directory[pd_idx] = ((uint32_t)new_table) | PAGE_PRESENT | PAGE_WRITE | ((virt < 0xC0000000) ? PAGE_USER : 0);
+		page_directory[pd_idx] = ((uint32_t)new_table) | PAGE_PRESENT | PAGE_WRITE | ((virt >= USER_ZONE_START) ? PAGE_USER : 0);
 		pde = page_directory[pd_idx];
 	}
 	uint32_t *pt = (uint32_t*)(pde & 0xFFFFF000);
@@ -98,12 +98,12 @@ void page_fault_handler(void)
 	}
 	
 	// Check if it's a permission violation (user trying to access kernel space)
-	if ((error_code & 0x4) && (fault_addr >= 0xC0000000)) {
+	if ((error_code & 0x4) && (fault_addr < USER_ZONE_START)) {
 		kpanic_fatal("User access to kernel space denied\n");
 	}
 	
 	// Check if it's a user space permission violation
-	if ((error_code & 0x4) && (fault_addr < 0xC0000000)) {
+	if ((error_code & 0x4) && (fault_addr >= USER_ZONE_START)) {
 		uint32_t *pte = virt_to_pte(fault_addr, 0);
 		if (pte && (*pte & PAGE_PRESENT)) {
 			kpanic_fatal("User access to supervisor-only page denied\n");

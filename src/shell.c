@@ -6,7 +6,7 @@
 #include "kheap.h"
 #include "paging.h"
 #include "vmem.h"
-#include "user_mem.h"
+// Removed user_mem.h - using vmalloc for user space
 #include "panic.h"
 
 #ifndef NULL
@@ -38,9 +38,7 @@ static struct shell_command commands[] = {
     {"vsize", "Get virtual block size: vsize <addr>", cmd_vsize},
     {"vbrk", "Virtual memory break: vbrk [new_addr]", cmd_vbrk},
     {"vget", "Show mapping of a virtual addr: vget <virt>", cmd_vget},
-    {"umalloc", "Allocate user memory: umalloc <bytes>", cmd_umalloc},
-    {"ufree", "Free user memory: ufree <addr>", cmd_ufree},
-    {"usize", "Get user block size: usize <addr>", cmd_usize},
+    // Removed umalloc commands - using vmalloc for user space
     {"present", "Map, unmap, then access to trigger not-present fault", cmd_present},
     {"pageops", "Test page creation and management", cmd_page_ops},
     {"allocfuncs", "Test allocation functions (kmalloc, kfree, ksize)", cmd_alloc_functions},
@@ -52,6 +50,7 @@ static struct shell_command commands[] = {
     {"pftest3", "Test page fault with simple unmapped access", cmd_pftest3},
     {"pftest4", "Test page fault by accessing NULL pointer", cmd_pftest4},
     {"biostest", "Test BIOS memory access protection", cmd_biostest},
+    {"meminfo", "Display memory information", cmd_meminfo},
     {"virmem", "Test virtual and physical memory functions", cmd_virtual_physical},
     {"panictest", "Test kernel panic handling", cmd_panic_test},
     {NULL, NULL, NULL} // Sentinel
@@ -381,12 +380,34 @@ static uint32_t parse_hex_or_dec(const char *s)
     return val;
 }
 
-void cmd_meminfo(int argc, char **argv)
+void cmd_meminfo(int argc __attribute__((unused)), char **argv __attribute__((unused)))
 {
-    (void)argc; (void)argv;
     kprintf("=== Memory Information ===\n");
-    kprintf("PMM total pages: %d \n", (int)pmm_total_pages());
-    kprintf("PMM free pages: %d \n", (int)pmm_free_pages());
+    
+    // Get PMM information
+    uint32_t total_pages = pmm_total_pages();
+    uint32_t free_pages = pmm_free_pages();
+    uint32_t used_pages = total_pages - free_pages;
+    
+    kprintf("Physical Memory Manager (PMM):\n");
+    kprintf("  Total pages: %d (%d MB)\n", total_pages, (total_pages * PAGE_SIZE) / (1024 * 1024));
+    kprintf("  Free pages: %d (%d MB)\n", free_pages, (free_pages * PAGE_SIZE) / (1024 * 1024));
+    kprintf("  Used pages: %d (%d MB)\n", used_pages, (used_pages * PAGE_SIZE) / (1024 * 1024));
+    kprintf("  Page size: %d bytes\n", PAGE_SIZE);
+    kprintf("  PMM start: 0x%x\n", PMM_START);
+    
+    kprintf("\nMemory Zones:\n");
+    kprintf("  Kernel zone: 0x%x - 0x%x (1GB)\n", KERNEL_ZONE_START, KERNEL_ZONE_END);
+    kprintf("  User zone: 0x%x - 0x%x (3GB)\n", USER_ZONE_START, USER_ZONE_END);
+    
+    kprintf("\nAllocator Regions:\n");
+    kprintf("  kmalloc: 0x%x - 0x%x (64MB) - Physical memory\n", KHEAP_START, KHEAP_END);
+    kprintf("  vmalloc: 0x%x - 0x%x (32MB) - Kernel virtual memory\n", KVMEM_START, KVMEM_END);
+    kprintf("  vmalloc: 0x%x - 0x%x (64MB) - User virtual memory\n", VMEM_START, VMEM_END);
+    
+    kprintf("\nProtected Regions:\n");
+    kprintf("  BIOS: 0x00000000 - 0x000FFFFF (1MB)\n");
+    kprintf("  Identity-mapped: 0x00100000 - 0x01FFFFFF (31MB)\n");
 }
 
 void cmd_kmalloc(int argc, char **argv)
@@ -489,29 +510,7 @@ void cmd_vget(int argc, char **argv)
 }
 
 // User space memory commands
-void cmd_umalloc(int argc, char **argv)
-{
-    if (argc < 2) { kprintf("Usage: umalloc <bytes>\n"); return; }
-    uint32_t n = parse_hex_or_dec(argv[1]);
-    void *p = umalloc(n);
-    kprintf("umalloc(%d) -> %x\n", (int)n, (uint32_t)p);
-}
-
-void cmd_ufree(int argc, char **argv)
-{
-    if (argc < 2) { kprintf("Usage: ufree <addr>\n"); return; }
-    uint32_t a = parse_hex_or_dec(argv[1]);
-    ufree((void*)a);
-    kprintf("ufree(%x)\n", a);
-}
-
-void cmd_usize(int argc, char **argv)
-{
-    if (argc < 2) { kprintf("Usage: usize <addr>\n"); return; }
-    uint32_t a = parse_hex_or_dec(argv[1]);
-    size_t s = usize((void*)a);
-    kprintf("usize(%x) -> %d\n", a, (int)s);
-}
+// Removed umalloc commands - using vmalloc for user space
 
 
 void cmd_page_ops(int argc __attribute__((unused)), char **argv __attribute__((unused)))
@@ -597,24 +596,24 @@ void cmd_alloc_functions(int argc __attribute__((unused)), char **argv __attribu
     // Test 1.5: Show memory state after kernel allocations
     
     
-    // Test 2: User allocation functions
+    // Test 2: Virtual memory allocation functions
     cmd_meminfo(argc, argv);
-    void *uptr1 = umalloc(200);
-    kprintf("   umalloc(200) = %x\n", (uint32_t)uptr1);
-    size_t usize1 = usize(uptr1);
-    kprintf("   usize(%x) = %d bytes\n", (uint32_t)uptr1, usize1);
-    cmd_meminfo(argc, argv);
-    ufree(uptr1);
-
-    
-    // Test 3: Virtual allocation functions
-    cmd_meminfo(argc, argv);
-    void *vptr1 = vmalloc(4096);
-    kprintf("   vmalloc(4096) = %x\n", (uint32_t)vptr1); 
+    void *vptr1 = vmalloc(200);
+    kprintf("   vmalloc(200) = %x\n", (uint32_t)vptr1);
     size_t vsize1 = vsize(vptr1);
     kprintf("   vsize(%x) = %d bytes\n", (uint32_t)vptr1, vsize1);
     cmd_meminfo(argc, argv);
     vfree(vptr1);
+
+    
+    // Test 3: Additional virtual allocation functions
+    cmd_meminfo(argc, argv);
+    void *vptr2 = vmalloc(4096);
+    kprintf("   vmalloc(4096) = %x\n", (uint32_t)vptr2); 
+    size_t vsize2 = vsize(vptr2);
+    kprintf("   vsize(%x) = %d bytes\n", (uint32_t)vptr2, vsize2);
+    cmd_meminfo(argc, argv);
+    vfree(vptr2);
 
     
     // Test 4: Force new page allocation
@@ -773,21 +772,22 @@ void cmd_write(int argc, char **argv)
     size_t alloc_size = 0;
     const char *alloc_type = "unknown";
     
-    // Kernel heap range: 0x01000000 - 0x02000000 (16MB)
-    if (addr >= 0x01000000 && addr < 0x02000000) {
+    // Kernel heap range: 0x04000000 - 0x07FFFFFF (64MB)
+    if (addr >= KHEAP_START && addr < KHEAP_END) {
         alloc_size = ksize((void*)addr);
         alloc_type = "kmalloc";
     }
-    // Virtual memory range: 0x02000000 - 0x03000000 (16MB) 
-    else if (addr >= 0x02000000 && addr < 0x03000000) {
+    // Kernel vmalloc range: 0x02000000 - 0x03FFFFFF (32MB) 
+    else if (addr >= KVMEM_START && addr < KVMEM_END) {
+        alloc_size = vsize((void*)addr);
+        alloc_type = "kvmalloc";
+    }
+    // User vmalloc range: 0x40000000 - 0x43FFFFFF (64MB)
+    else if (addr >= VMEM_START && addr < VMEM_END) {
         alloc_size = vsize((void*)addr);
         alloc_type = "vmalloc";
     }
-    // User heap range: 0x08000000 - 0x09000000 (16MB)
-    else if (addr >= 0x08000000 && addr < 0x09000000) {
-        alloc_size = usize((void*)addr);
-        alloc_type = "umalloc";
-    }
+    // Removed umalloc - using vmalloc for user space
     
     if (alloc_size > 0) {
         // Writing 4 bytes to a valid allocation
@@ -822,21 +822,22 @@ void cmd_read(int argc, char **argv)
     size_t alloc_size = 0;
     const char *alloc_type = "unknown";
     
-    // Kernel heap range: 0x01000000 - 0x02000000 (16MB)
-    if (addr >= 0x01000000 && addr < 0x02000000) {
+    // Kernel heap range: 0x04000000 - 0x07FFFFFF (64MB)
+    if (addr >= KHEAP_START && addr < KHEAP_END) {
         alloc_size = ksize((void*)addr);
         alloc_type = "kmalloc";
     }
-    // Virtual memory range: 0x02000000 - 0x03000000 (16MB) 
-    else if (addr >= 0x02000000 && addr < 0x03000000) {
+    // Kernel vmalloc range: 0x02000000 - 0x03FFFFFF (32MB) 
+    else if (addr >= KVMEM_START && addr < KVMEM_END) {
+        alloc_size = vsize((void*)addr);
+        alloc_type = "kvmalloc";
+    }
+    // User vmalloc range: 0x40000000 - 0x43FFFFFF (64MB)
+    else if (addr >= VMEM_START && addr < VMEM_END) {
         alloc_size = vsize((void*)addr);
         alloc_type = "vmalloc";
     }
-    // User heap range: 0x08000000 - 0x09000000 (16MB)
-    else if (addr >= 0x08000000 && addr < 0x09000000) {
-        alloc_size = usize((void*)addr);
-        alloc_type = "umalloc";
-    }
+    // Removed umalloc - using vmalloc for user space
     
     if (alloc_size > 0) {
         // Reading 4 bytes from a valid allocation
@@ -933,12 +934,12 @@ void cmd_pftest2(int argc, char **argv)
     kprintf("Testing kernel space access protection...\n\n");
     
     // Test 2: Access kernel space (should trigger protection violation)
-    kprintf("Test 2: Accessing kernel space (0xC0000000+)\n");
-    kprintf("pftest2: About to access 0xC0000000 (kernel space)...\n");
+    kprintf("Test 2: Accessing kernel space (0x%x+)\n", KERNEL_ZONE_START);
+    kprintf("pftest2: About to access 0x%x (kernel space)...\n", KERNEL_ZONE_START);
     kprintf("pftest2: This should trigger a protection violation!\n");
     
     // This should trigger a page fault with protection violation
-    volatile uint32_t *kernel_space = (volatile uint32_t*)0xC0000000;
+    volatile uint32_t *kernel_space = (volatile uint32_t*)KERNEL_ZONE_START;
     uint32_t value = *kernel_space;  // This will cause a page fault
     (void)value;  // Suppress unused variable warning
     

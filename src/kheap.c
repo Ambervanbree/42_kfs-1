@@ -19,13 +19,13 @@ static size_t heap_size = 0;
 static size_t heap_used = 0;
 static block_header_t *free_list = 0;
 
-#define KHEAP_VIRTUAL_START 0x01000000  // 16MB virtual start for kernel heap
-#define KHEAP_SIZE         0x00400000  // 4MB total kernel heap size (fits in 10MB limit)
+// KHEAP_VIRTUAL_START and KHEAP_SIZE are now defined in kernel.h
+#define KHEAP_SIZE         (KHEAP_END - KHEAP_START + 1)  // 64MB total kernel heap size
 
 void kheap_init(void)
 {
 	// Pre-map the entire kernel heap region at boot time
-	heap_base = (uint8_t*)KHEAP_VIRTUAL_START;
+	heap_base = (uint8_t*)KHEAP_START;
 	heap_size = KHEAP_SIZE;
 	heap_used = 0;
 	free_list = 0;
@@ -37,7 +37,7 @@ void kheap_init(void)
 		if (!phys) {
 			kpanic_fatal("kheap_init: failed to allocate physical page %d\n", (int)i);
 		}
-		uint32_t v = KHEAP_VIRTUAL_START + (i * PAGE_SIZE);
+		uint32_t v = KHEAP_START + (i * PAGE_SIZE);
 		if (vmm_map_page(v, (uint32_t)phys, PAGE_WRITE) != 0) {
 			kpanic_fatal("kheap_init: failed to map page at %x\n", v);
 		}
@@ -50,7 +50,7 @@ void kheap_init(void)
 	free_list->next = 0;
 	
 	kprintf("Kernel heap initialized: %x-%x (%d MB)\n", 
-	        KHEAP_VIRTUAL_START, KHEAP_VIRTUAL_START + KHEAP_SIZE, KHEAP_SIZE / (1024*1024));
+	        KHEAP_START, KHEAP_END, KHEAP_SIZE / (1024*1024));
 }
 
 static void split_block(block_header_t *blk, size_t size)

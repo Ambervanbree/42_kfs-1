@@ -347,23 +347,16 @@ PDE.P = whether the Page Table exists in memory.
 PTE.P = whether the actual page frame exists in memory.
 
 
-Virtual Memory Layout:
-0x00000000 ┌─────────────────┐
-           │   BIOS Reserved │ ← BIOS, hardware (1MB)
-0x00100000 ├─────────────────┤ ← Kernel start (identity mapped)
-           │   Kernel Code   │ ← .text section
-0x00101000 ├─────────────────┤ ← Kernel data (identity mapped)
-           │   Kernel Data   │ ← .data section
-0x00102000 ├─────────────────┤ ← Kernel bss (identity mapped)
-           │   Kernel BSS    │ ← .bss section
-0x00C00000 ├─────────────────┤ ← IDENTITY MAPPING ENDS HERE
-           │   UNUSED        │ ← 0x00C00000-0x00FFFFFF (4MB)
-0x01000000 ├─────────────────┤ ← Kernel Heap (kmalloc) starts here
-           │   Dynamic Alloc │ ← ONLY kernel heap
-0x02000000 ├─────────────────┤ ← Virtual Memory (vmalloc) starts here
-           │   Page Alloc    │ ← vmalloc region (NOT kernel heap)
-0x08000000 ├─────────────────┤ ← User Space starts here
-           │   User Heap     │ ← umalloc() region (0x08000000-0xBFFFFFFF)
-0xC0000000 ├─────────────────┤ ← Kernel Space starts here
-           │   Kernel Space  │ ← Future kernel virtual space
-0xFFFFFFFF └─────────────────┘
+
+KERNEL ZONE (0x00000000 - 0x3FFFFFFF) - 1GB:
+0x00000000 - 0x000FFFFF: BIOS Memory (1MB) ⚠️ PROTECTED
+0x00100000 - 0x00BFFFFF: Identity-mapped (11MB)
+0x00C00000 - 0x01FFFFFF: Reserved/Unused (20MB)
+0x02000000 - 0x03FFFFFF: Kernel vmalloc (32MB) ✅
+0x04000000 - 0x07FFFFFF: kmalloc (64MB) ✅
+0x08000000 - 0x3FFFFFFF: Kernel data/structures (896MB)
+
+USER ZONE (0x40000000 - 0xFFFFFFFF) - 3GB:
+0x40000000 - 0x43FFFFFF: vmalloc (64MB) ✅
+0x44000000 - 0x47FFFFFF: umalloc (64MB) ✅
+0x48000000 - 0xFFFFFFFF: User processes (3GB)

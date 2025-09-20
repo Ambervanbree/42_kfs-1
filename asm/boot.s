@@ -2,8 +2,8 @@
 section .multiboot
     align 4
     dd 0x1BADB002          ; Magic number that GRUB looks for to identify kernel
-    dd 0x0                 ; Flags (0 = no special requirements)
-    dd -(0x1BADB002 + 0x0) ; Checksum to validate header integrity
+    dd 0x00000003          ; Flags (bit 0: load modules, bit 1: memory info)
+    dd -(0x1BADB002 + 0x00000003) ; Checksum to validate header integrity
 
 ; Main code section - contains all executable instructions
 section .text
@@ -27,6 +27,11 @@ start:
     extern __bss_start      ; Symbol from linker script: start of .bss section
     extern __bss_end        ; Symbol from linker script: end of .bss section
     
+    ; GRUB passes multiboot info in EBX register
+    ; We need to save it before calling C functions
+    push ebx                ; Save multiboot info pointer
+    push eax                ; Save multiboot magic number
+    
     ; ------------------------------------------------------
     ; Zero the .bss section (all uninitialized globals/statics)
     ; This is CRITICAL: without this, global variables would have random values!
@@ -48,6 +53,7 @@ start:
     call gdt_flush          ; Flush CPU caches and activate new GDT
     
     ; Call the main kernel function written in C
+    ; Pass multiboot magic and info pointer as parameters
     ; From this point on, we're running in the C kernel code
     call kernel_main
     

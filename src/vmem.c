@@ -5,7 +5,6 @@
 #include "kprintf.h"
 
 // Virtual memory region for vmalloc
-#define VMEM_START 0x02000000  // 32MB virtual start
 static uint32_t vmem_current = VMEM_START;
 static uint32_t vmem_size = 0;
 
@@ -55,6 +54,11 @@ void *vmalloc(size_t size)
 	// Need to expand virtual region
 	uint32_t needed_pages = (size + sizeof(vmem_block_t) + PAGE_SIZE - 1) / PAGE_SIZE;
 	uint32_t new_vmem_end = vmem_current + needed_pages * PAGE_SIZE;
+	
+	// Check if expansion would exceed vmalloc region
+	if (new_vmem_end > VMEM_END) {
+		kpanic_fatal("vmalloc: would exceed vmalloc region\n");
+	}
 	
     // Map new pages
 	for (uint32_t va = vmem_current; va < new_vmem_end; va += PAGE_SIZE) {

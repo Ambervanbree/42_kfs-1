@@ -3,13 +3,15 @@
 #include "kprintf.h"
 
 #define PMM_START 0x00100000u
-#define PMM_LIMIT_BYTES (10u * 1024u * 1024u)
+#define PMM_MAX_BYTES (1024u * 1024u * 1024u)  // 1GB maximum
 
 static uint32_t total_pages = 0;
 static uint32_t free_pages = 0;
+static uint32_t pmm_limit_bytes = 0;
 
 // Bitmap: 1 = used, 0 = free
-static uint32_t bitmap[(PMM_LIMIT_BYTES / PAGE_SIZE) / 32 + 1];
+// Allocate maximum possible bitmap (1GB / 4KB / 32 bits per uint32_t)
+static uint32_t bitmap[(PMM_MAX_BYTES / PAGE_SIZE) / 32 + 1];
 
 static inline void set_bit(uint32_t idx) { bitmap[idx >> 5] |= (1u << (idx & 31)); }
 static inline void clr_bit(uint32_t idx) { bitmap[idx >> 5] &= ~(1u << (idx & 31)); }
@@ -17,26 +19,50 @@ static inline int  tst_bit(uint32_t idx) { return (bitmap[idx >> 5] >> (idx & 31
 
 void pmm_init(uint32_t mem_size_bytes)
 {
-	if (mem_size_bytes > PMM_LIMIT_BYTES) mem_size_bytes = PMM_LIMIT_BYTES;
+	// Cap memory at maximum supported size
+	if (mem_size_bytes > PMM_MAX_BYTES) {
+		kprintf("PMM: Memory size %d MB exceeds maximum %d MB, capping\n", 
+		        mem_size_bytes / (1024 * 1024), PMM_MAX_BYTES / (1024 * 1024));
+		mem_size_bytes = PMM_MAX_BYTES;
+	}
+	
+	pmm_limit_bytes = mem_size_bytes;
 	total_pages = mem_size_bytes / PAGE_SIZE;
     if (total_pages == 0) {
         kpanic_fatal("PMM: no usable memory detected\n");
     }
+    
+    // Calculate how much memory is actually available (after PMM_START)
+    uint32_t available_memory = mem_size_bytes - PMM_START;
+    uint32_t available_pages = available_memory / PAGE_SIZE;
+    
+    if (available_pages == 0) {
+        kpanic_fatal("PMM: no memory available after PMM_START\n");
+    }
+    
 	free_pages = 0;
-	for (uint32_t i = 0; i < (sizeof(bitmap)/sizeof(bitmap[0])); i++) bitmap[i] = 0xFFFFFFFFu; // mark all used
+	// Initialize bitmap: mark all as used initially
+	for (uint32_t i = 0; i < (sizeof(bitmap)/sizeof(bitmap[0])); i++) {
+		bitmap[i] = 0xFFFFFFFFu;
+	}
+	
 	// Mark available pages as free starting from PMM_START
 	uint32_t start_page = 0; // index 0 corresponds to PMM_START
-	for (uint32_t i = start_page; i < total_pages; i++) {
+	for (uint32_t i = start_page; i < available_pages; i++) {
 		clr_bit(i);
 		free_pages++;
 	}
+	
 	// Reserve first few pages for kernel (roughly 1MB for now)
 	uint32_t reserve_pages = (1024u * 1024u) / PAGE_SIZE;
-	if (reserve_pages > total_pages) reserve_pages = total_pages;
+	if (reserve_pages > available_pages) reserve_pages = available_pages;
 	for (uint32_t i = 0; i < reserve_pages; i++) {
 		if (!tst_bit(i)) { set_bit(i); free_pages--; }
 	}
-	kprintf("PMM: total=%d pages, free=%d pages\n", total_pages, free_pages);
+	
+	kprintf("PMM: total=%d pages (%d MB), free=%d pages (%d MB)\n", 
+	        total_pages, total_pages * PAGE_SIZE / (1024 * 1024),
+	        free_pages, free_pages * PAGE_SIZE / (1024 * 1024));
 }
 
 void *pmm_alloc_page(void)

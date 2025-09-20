@@ -2,7 +2,7 @@
 #include "pmm.h"
 #include "paging.h"
 #include "kheap.h"
-#include "user_mem.h"
+// Removed user_mem.h - using vmalloc for user space
 #include "kprintf.h"
 
 void memory_init(uint32_t mem_bytes)
@@ -14,8 +14,7 @@ void memory_init(uint32_t mem_bytes)
 	paging_enable();
 	// Initialize kernel heap
 	kheap_init();
-	// Initialize user memory management
-	user_mem_init();
-	kprintf("Memory subsystem initialized with user space support.\n");
+	// User space uses vmalloc (virtual memory allocator)
+	kprintf("Memory subsystem initialized with vmalloc for user space.\n");
 }
 
