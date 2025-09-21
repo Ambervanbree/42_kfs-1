@@ -112,14 +112,12 @@ void vfree(void *ptr)
 	
 	// Merge with adjacent free blocks if possible, to reduce fragmentation
 	vmem_block_t *cur = vmem_list;
-	while (cur && cur->next) {
-		uint8_t *end_cur = (uint8_t*)cur + sizeof(vmem_block_t) + cur->size;
-		if (cur->free && cur->next->free && end_cur == (uint8_t*)cur->next) {
-			cur->size += sizeof(vmem_block_t) + cur->next->size;
-			cur->next = cur->next->next;
-		} else {
-			cur = cur->next;
-		}
+	uint8_t *end_cur = (uint8_t*)cur + sizeof(vmem_block_t) + cur->capacity;
+	if (cur->free && cur->next->free && end_cur == (uint8_t*)cur->next) {
+		cur->capacity += sizeof(vmem_block_t) + cur->next->capacity;
+		cur->next = cur->next->next;
+	} else {
+		cur = cur->next;
 	}
 }
 
